@@ -2,21 +2,10 @@
 -- НАСТРОЙКА ЦЕНТРАЛЬНОГО УЗЛА (ГОЛОВНОЙ ОФИС)
 -- ===========================================
 
--- 1. Создание публикации для репликации с основной копией (РОК)
--- Справочные данные, которые изменяются только в центре
-CREATE PUBLICATION pub_reference_data FOR 
-    TABLE ONLY hotels,
-    TABLE ONLY cities, 
-    TABLE ONLY categories_hotel,
-    TABLE ONLY categories_room,
-    TABLE ONLY positions,
-    TABLE ONLY loyalty_cards,
-    TABLE ONLY types_amenities;
-
--- 2. Создание пользователя для репликации
+-- 1. Создание пользователя для репликации
 CREATE ROLE repuser REPLICATION LOGIN PASSWORD 'hotel_repl_2024';
 
--- 3. Предоставление прав на чтение справочных таблиц
+-- 2. Предоставление прав на чтение справочных таблиц
 GRANT SELECT ON hotels TO repuser;
 GRANT SELECT ON cities TO repuser;
 GRANT SELECT ON categories_hotel TO repuser;
@@ -25,7 +14,7 @@ GRANT SELECT ON positions TO repuser;
 GRANT SELECT ON loyalty_cards TO repuser;
 GRANT SELECT ON types_amenities TO repuser;
 
--- 4. Создание подписок для получения данных от филиалов (РКД)
+-- 3. Создание подписок для получения данных от филиалов (РКД)
 -- Подписка на данные о номерах от всех филиалов
 CREATE SUBSCRIPTION sub_rooms_consolidation
 CONNECTION 'dbname=hotel_management host=<FILIAL_IP> user=repuser password=hotel_repl_2024'
@@ -51,7 +40,7 @@ CREATE SUBSCRIPTION sub_payments_consolidation
 CONNECTION 'dbname=hotel_management host=<FILIAL_IP> user=repuser password=hotel_repl_2024'
 PUBLICATION pub_payments_data;
 
--- 5. Создание триггеров для обработки конфликтов гостей (РБОК)
+-- 4. Создание триггеров для обработки конфликтов гостей (РБОК)
 -- Функция для разрешения конфликтов по уникальности документов
 CREATE OR REPLACE FUNCTION resolve_guest_conflicts()
 RETURNS TRIGGER AS $$
@@ -78,3 +67,14 @@ CREATE TRIGGER trigger_resolve_guest_conflicts
     BEFORE INSERT ON guests
     FOR EACH ROW
     EXECUTE FUNCTION resolve_guest_conflicts();
+
+-- 5. Создание публикации для репликации с основной копией (РОК)
+-- Справочные данные, которые изменяются только в центре
+CREATE PUBLICATION pub_reference_data FOR 
+    TABLE ONLY hotels,
+    TABLE ONLY cities, 
+    TABLE ONLY categories_hotel,
+    TABLE ONLY categories_room,
+    TABLE ONLY positions,
+    TABLE ONLY loyalty_cards,
+    TABLE ONLY types_amenities;

@@ -117,3 +117,4 @@ CREATE TRIGGER trigger_set_hotel_amenities
     BEFORE INSERT ON amenities
     FOR EACH ROW
     EXECUTE FUNCTION set_local_hotel_id();
+    
