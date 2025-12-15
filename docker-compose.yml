@@ -1,0 +1,98 @@
+version: '3.8'
+
+# Общие настройки для всех PostgreSQL сервисов
+x-postgres-common: &postgres-common
+  image: postgres:15
+  environment:
+    POSTGRES_DB: hotel_management
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: password
+  command: >
+    postgres 
+    -c wal_level=logical
+    -c max_wal_senders=10
+    -c max_replication_slots=10
+    -c max_logical_replication_workers=10
+    -c max_worker_processes=16
+    -c listen_addresses='*'
+  networks:
+    - hotel_network
+  restart: unless-stopped
+
+services:
+  # Центральный узел (головной офис)
+  postgres-central:
+    <<: *postgres-common
+    container_name: hotel_central_node
+    ports:
+      - "5432:5432"
+    volumes:
+      - central_data:/var/lib/postgresql/data
+      - ./schema:/docker-entrypoint-initdb.d/01-schema
+      - ./fill:/docker-entrypoint-initdb.d/02-fill
+      - ./replication/central_node_setup.sql:/docker-entrypoint-initdb.d/03-replication.sql
+      - ./replication/postgresql-central.conf:/etc/postgresql/postgresql.conf
+    networks:
+      hotel_network:
+        ipv4_address: 192.168.1.10
+
+  # Филиал 1 (Отель в Москве)
+  postgres-filial1:
+    <<: *postgres-common
+    container_name: hotel_filial1_node
+    ports:
+      - "5433:5432"
+    depends_on:
+      - postgres-central
+    volumes:
+      - filial1_data:/var/lib/postgresql/data
+      - ./schema:/docker-entrypoint-initdb.d/01-schema
+      - ./replication/filial_node_setup.sql:/docker-entrypoint-initdb.d/03-replication.sql
+    networks:
+      hotel_network:
+        ipv4_address: 192.168.1.100
+
+  # Филиал 2 (Отель в СПб)
+  postgres-filial2:
+    <<: *postgres-common
+    container_name: hotel_filial2_node
+    ports:
+      - "5434:5432"
+    depends_on:
+      - postgres-central
+    volumes:
+      - filial2_data:/var/lib/postgresql/data
+      - ./schema:/docker-entrypoint-initdb.d/01-schema
+      - ./replication/filial_node_setup.sql:/docker-entrypoint-initdb.d/03-replication.sql
+    networks:
+      hotel_network:
+        ipv4_address: 192.168.1.101
+
+  # Филиал 3 (Отель в Казани)
+  postgres-filial3:
+    <<: *postgres-common
+    container_name: hotel_filial3_node
+    ports:
+      - "5435:5432"
+    depends_on:
+      - postgres-central
+    volumes:
+      - filial3_data:/var/lib/postgresql/data
+      - ./schema:/docker-entrypoint-initdb.d/01-schema
+      - ./replication/filial_node_setup.sql:/docker-entrypoint-initdb.d/03-replication.sql
+    networks:
+      hotel_network:
+        ipv4_address: 192.168.1.102
+
+networks:
+  hotel_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24
+
+volumes:
+  central_data:
+  filial1_data:
+  filial2_data:
+  filial3_data:
