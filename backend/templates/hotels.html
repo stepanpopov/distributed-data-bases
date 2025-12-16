@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Список отелей{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Наши отели</h1>
+
+<!-- Фильтр по городу -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form method="GET" action="/hotels" class="d-flex">
+            <select name="city" class="form-select me-2">
+                <option value="">Все города</option>
+                <option value="Москва">Москва</option>
+                <option value="Санкт-Петербург">Санкт-Петербург</option>
+                <option value="Казань">Казань</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Фильтровать</button>
+        </form>
+    </div>
+</div>
+
+<!-- Список отелей -->
+<div class="row">
+    {% for hotel in hotels %}
+    <div class="col-md-6 mb-4">
+        <div class="card hotel-card">
+            <div class="card-body">
+                <h5 class="card-title">{{ hotel.name }}</h5>
+                <h6 class="card-subtitle mb-2 text-muted">
+                    {{ hotel.city_name }} • {{ hotel.star_rating }}★
+                </h6>
+                <p class="card-text">
+                    <strong>Адрес:</strong> {{ hotel.address }}<br>
+                    <strong>Телефон:</strong> {{ hotel.phone_number }}<br>
+                    <strong>Заезд:</strong> {{ hotel.check_in_time }} • <strong>Выезд:</strong> {{ hotel.check_out_time }}
+                </p>
+                <p>{{ hotel.description }}</p>
+                <a href="/hotels/{{ hotel.id }}" class="btn btn-primary">Выбрать номер</a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info">Отели не найдены</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

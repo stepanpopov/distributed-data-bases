@@ -7,7 +7,7 @@ x-postgres-common: &postgres-common
     POSTGRES_PASSWORD: password
     POSTGRES_HOST_AUTH_METHOD: trust
   command: >
-    postgres 
+    postgres
     -c wal_level=logical
     -c max_wal_senders=10
     -c max_replication_slots=10
@@ -22,10 +22,34 @@ x-postgres-common: &postgres-common
 x-filial-common: &filial-common
   <<: *postgres-common
   depends_on:
-    - postgres-central
+    postgres-central:
+      condition: service_healthy
   volumes:
     - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
+
+# Настройки для Flask API
+x-api-common: &api-common
+  build: ./backend
+  environment:
+    FLASK_ENV: development
+    FLASK_DEBUG: 1
+    CENTRAL_DB_URL: postgresql://postgres:password@postgres-central:5432/hotel_management
+    FILIAL1_DB_URL: postgresql://postgres:password@postgres-filial1:5432/hotel_management
+    FILIAL2_DB_URL: postgresql://postgres:password@postgres-filial2:5432/hotel_management
+    FILIAL3_DB_URL: postgresql://postgres:password@postgres-filial3:5432/hotel_management
+  networks:
+    - hotel_network
+  restart: unless-stopped
+  depends_on:
+    postgres-central:
+      condition: service_healthy
+    postgres-filial1:
+      condition: service_healthy
+    postgres-filial2:
+      condition: service_healthy
+    postgres-filial3:
+      condition: service_healthy
 
 services:
   # Центральный узел (головной офис)
@@ -40,6 +64,11 @@ services:
       - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill.sql
       - ./init/central_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Филиал 1 (Отель в Москве)
   postgres-filial1:
@@ -54,6 +83,11 @@ services:
       - ./init/fill_node2.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Филиал 2 (Отель в СПб)
   postgres-filial2:
@@ -68,6 +102,11 @@ services:
       - ./init/fill_node3.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Филиал 3 (Отель в Казани)
   postgres-filial3:
@@ -82,6 +121,21 @@ services:
       - ./init/fill_node4.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Flask API сервис
+  api:
+    <<: *api-common
+    container_name: hotel_api
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+    command: python app.py
 
 networks:
   hotel_network:

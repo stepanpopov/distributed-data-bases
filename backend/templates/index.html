@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Главная - Система бронирования отелей{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2 text-center">
+        <h1 class="mb-4">Добро пожаловать в систему бронирования отелей</h1>
+        <p class="lead mb-4">Бронируйте номера в лучших отелях сети</p>
+
+        <div class="row mt-5">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Поиск отелей</h5>
+                        <p class="card-text">Найдите подходящий отель по городу и датам</p>
+                        <a href="/hotels" class="btn btn-primary">Найти отель</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Бронирование</h5>
+                        <p class="card-text">Забронируйте номер онлайн</p>
+                        <a href="/hotels" class="btn btn-primary">Забронировать</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Для сотрудников</h5>
+                        <p class="card-text">Доступ к системе управления</p>
+                        <a href="/reception/1" class="btn btn-secondary">Ресепшен</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
