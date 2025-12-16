@@ -50,7 +50,7 @@ services:
     volumes:
       - filial1_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill_references.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
+      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
       - ./init/fill_node2.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
@@ -64,7 +64,7 @@ services:
     volumes:
       - filial2_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill_references.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
+      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
       - ./init/fill_node3.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
@@ -78,7 +78,7 @@ services:
     volumes:
       - filial3_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill_references.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
+      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
       - ./init/fill_node4.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
