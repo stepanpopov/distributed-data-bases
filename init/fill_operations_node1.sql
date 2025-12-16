@@ -1,20 +1,21 @@
 -- ===========================================
--- ЗАПОЛНЕНИЕ ДАННЫХ ДЛЯ УЗЛА 1 (Hotel Central Moscow - Москва)
+-- ЗАПОЛНЕНИЕ ОПЕРАЦИОННЫХ ДАННЫХ ДЛЯ УЗЛА 1 (Hotel Central Moscow - Москва)
 -- START WITH 1 INCREMENT BY 3 (1, 4, 7, 10...)
+-- Справочные данные получаются через репликацию с центрального узла
 -- ===========================================
 
--- Настройка IDENTITY для узла 1
--- Для PostgreSQL нужно изменить параметры последовательности напрямую
-SELECT setval(pg_get_serial_sequence('guests', 'id'), 1, false);
-SELECT setval(pg_get_serial_sequence('employees', 'id'), 1, false);
-SELECT setval(pg_get_serial_sequence('rooms', 'id'), 1, false);
-SELECT setval(pg_get_serial_sequence('amenities', 'id'), 1, false);
-SELECT setval(pg_get_serial_sequence('reservations', 'id'), 1, false);
-SELECT setval(pg_get_serial_sequence('details_reservations', 'id'), 1, false);
-SELECT setval(pg_get_serial_sequence('payments', 'id'), 1, false);
-SELECT setval(pg_get_serial_sequence('payments_amenities', 'id'), 1, false);
+-- Настройка IDENTITY для узла 1 (ID: 1, 4, 7, 10...)
+-- Правильная настройка для INCREMENT BY 3
+ALTER SEQUENCE guests_id_seq RESTART WITH 1 INCREMENT BY 3;
+ALTER SEQUENCE employees_id_seq RESTART WITH 1 INCREMENT BY 3;
+ALTER SEQUENCE rooms_id_seq RESTART WITH 1 INCREMENT BY 3;
+ALTER SEQUENCE amenities_id_seq RESTART WITH 1 INCREMENT BY 3;
+ALTER SEQUENCE reservations_id_seq RESTART WITH 1 INCREMENT BY 3;
+ALTER SEQUENCE details_reservations_id_seq RESTART WITH 1 INCREMENT BY 3;
+ALTER SEQUENCE payments_id_seq RESTART WITH 1 INCREMENT BY 3;
+ALTER SEQUENCE payments_amenities_id_seq RESTART WITH 1 INCREMENT BY 3;
 
--- Гости отеля 1 (создаются на филиале, используют SERIAL)
+-- Гости отеля 1 (создаются на филиале, ID будут: 1, 4)
 INSERT INTO guests (first_name, last_name, middle_name, phone_number, email, birth_date, document, loyalty_card_id, bonus_points)
 VALUES
 ('Иван', 'Иванов', 'Иванович', '+79001112233', 'ivanov@mail.ru',

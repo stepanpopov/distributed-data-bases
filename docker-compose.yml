@@ -1,6 +1,6 @@
 # Общие настройки для всех PostgreSQL сервисов
 x-postgres-common: &postgres-common
-  image: postgres:15
+  image: postgres:16
   environment:
     POSTGRES_DB: hotel_management
     POSTGRES_USER: postgres
@@ -10,9 +10,9 @@ x-postgres-common: &postgres-common
     postgres 
     -c wal_level=logical
     -c max_wal_senders=10
-    -c max_replication_slots=10
-    -c max_logical_replication_workers=4
-    -c max_worker_processes=8
+    -c max_replication_slots=40
+    -c max_logical_replication_workers=24
+    -c max_worker_processes=40
     -c listen_addresses='*'
   networks:
     - hotel_network
@@ -50,9 +50,7 @@ services:
     volumes:
       - filial1_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
-      - ./init/fill_node2.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
-      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
+      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
 
   # Филиал 2 (Отель в СПб)
@@ -64,9 +62,7 @@ services:
     volumes:
       - filial2_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
-      - ./init/fill_node3.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
-      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
+      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
 
   # Филиал 3 (Отель в Казани)
@@ -78,9 +74,7 @@ services:
     volumes:
       - filial3_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
-      - ./init/fill_node4.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
-      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
+      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
 
 networks:
