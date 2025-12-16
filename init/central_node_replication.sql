@@ -13,34 +13,9 @@ GRANT SELECT ON categories_room TO repuser;
 GRANT SELECT ON positions TO repuser;
 GRANT SELECT ON loyalty_cards TO repuser;
 GRANT SELECT ON types_amenities TO repuser;
+GRANT SELECT ON guests TO repuser;
 
--- 3. Создание подписок для получения данных от филиалов (РКД)
--- Подписка на данные о номерах от всех филиалов
-CREATE SUBSCRIPTION sub_rooms_consolidation
-CONNECTION 'dbname=hotel_management host=<FILIAL_IP> user=repuser password=hotel_repl_2024'
-PUBLICATION pub_rooms_data;
-
--- Подписка на данные о сотрудниках от всех филиалов  
-CREATE SUBSCRIPTION sub_employees_consolidation
-CONNECTION 'dbname=hotel_management host=<FILIAL_IP> user=repuser password=hotel_repl_2024'
-PUBLICATION pub_employees_data;
-
--- Подписка на данные о бронированиях от всех филиалов
-CREATE SUBSCRIPTION sub_reservations_consolidation
-CONNECTION 'dbname=hotel_management host=<FILIAL_IP> user=repuser password=hotel_repl_2024'
-PUBLICATION pub_reservations_data;
-
--- Подписка на данные об удобствах от всех филиалов
-CREATE SUBSCRIPTION sub_amenities_consolidation
-CONNECTION 'dbname=hotel_management host=<FILIAL_IP> user=repuser password=hotel_repl_2024'
-PUBLICATION pub_amenities_data;
-
--- Подписка на платежи от всех филиалов (каждые 3 часа)
-CREATE SUBSCRIPTION sub_payments_consolidation
-CONNECTION 'dbname=hotel_management host=<FILIAL_IP> user=repuser password=hotel_repl_2024'
-PUBLICATION pub_payments_data;
-
--- 4. Создание триггеров для обработки конфликтов гостей (РБОК)
+-- 3. Создание триггеров для обработки конфликтов гостей (РБОК)
 -- Функция для разрешения конфликтов по уникальности документов
 CREATE OR REPLACE FUNCTION resolve_guest_conflicts()
 RETURNS TRIGGER AS $$
@@ -68,7 +43,7 @@ CREATE TRIGGER trigger_resolve_guest_conflicts
     FOR EACH ROW
     EXECUTE FUNCTION resolve_guest_conflicts();
 
--- 5. Создание публикации для репликации с основной копией (РОК)
+-- 4. Создание публикации для репликации с основной копией (РОК)
 -- Справочные данные, которые изменяются только в центре
 CREATE PUBLICATION pub_reference_data FOR 
     TABLE ONLY hotels,

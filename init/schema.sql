@@ -8,7 +8,7 @@ CREATE TABLE types_amenities (
 CREATE TABLE cities (
     id SERIAL PRIMARY KEY,
     city_name VARCHAR(100) NOT NULL,
-    country_name_code CHAR(3) NOT NULL UNIQUE
+    country_name_code CHAR(3) NOT NULL
 );
 
 -- Категории отелей

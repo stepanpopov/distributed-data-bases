@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Общие настройки для всех PostgreSQL сервисов
 x-postgres-common: &postgres-common
   image: postgres:15
@@ -7,13 +5,14 @@ x-postgres-common: &postgres-common
     POSTGRES_DB: hotel_management
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: password
+    POSTGRES_HOST_AUTH_METHOD: trust
   command: >
     postgres 
     -c wal_level=logical
     -c max_wal_senders=10
     -c max_replication_slots=10
-    -c max_logical_replication_workers=10
-    -c max_worker_processes=16
+    -c max_logical_replication_workers=4
+    -c max_worker_processes=8
     -c listen_addresses='*'
   networks:
     - hotel_network
@@ -39,11 +38,8 @@ services:
       - central_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill.sql
-      - ./replication/central_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
-      - ./init/pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
-    networks:
-      hotel_network:
-        ipv4_address: 192.168.1.10
+      - ./init/central_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
+      - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
 
   # Филиал 1 (Отель в Москве)
   postgres-filial1:
@@ -55,9 +51,7 @@ services:
       - filial1_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
-    networks:
-      hotel_network:
-        ipv4_address: 192.168.1.100
+      - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
 
   # Филиал 2 (Отель в СПб)
   postgres-filial2:
@@ -69,9 +63,7 @@ services:
       - filial2_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
-    networks:
-      hotel_network:
-        ipv4_address: 192.168.1.101
+      - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
 
   # Филиал 3 (Отель в Казани)
   postgres-filial3:
@@ -83,16 +75,11 @@ services:
       - filial3_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
-    networks:
-      hotel_network:
-        ipv4_address: 192.168.1.102
+      - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
 
 networks:
   hotel_network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 192.168.1.0/24
 
 volumes:
   central_data:

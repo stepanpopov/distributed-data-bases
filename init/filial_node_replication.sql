@@ -42,79 +42,95 @@ GRANT SELECT ON amenities TO repuser;
 GRANT SELECT ON payments TO repuser;
 GRANT SELECT ON guests TO repuser;
 
--- 4. Создание подписки на справочные данные от центрального узла (РОК)
-CREATE SUBSCRIPTION sub_reference_data
-CONNECTION 'dbname=hotel_management host=<CENTRAL_IP> user=repuser password=hotel_repl_2024'
-PUBLICATION pub_reference_data;
-
--- 5. Создание подписки на данные о гостях от других узлов (РБОК)
--- Это для синхронизации гостей между всеми узлами
-CREATE SUBSCRIPTION sub_guests_sync
-CONNECTION 'dbname=hotel_management host=<OTHER_FILIAL_IP> user=repuser password=hotel_repl_2024'
-PUBLICATION pub_guests_data;
-
--- 6. Создание функций для ограничения локальных операций
+-- 4. Создание функций для ограничения локальных операций
 -- Функция для проверки принадлежности отеля текущему филиалу
-CREATE OR REPLACE FUNCTION check_hotel_ownership()
-RETURNS TRIGGER AS $$
-DECLARE
-    local_hotel_id INTEGER;
-BEGIN
-    -- Получаем ID отеля для данного филиала (например, из конфигурации)
-    SELECT current_setting('app.local_hotel_id')::INTEGER INTO local_hotel_id;
+-- CREATE OR REPLACE FUNCTION check_hotel_ownership()
+-- RETURNS TRIGGER AS $$
+-- DECLARE
+--     local_hotel_id INTEGER;
+-- BEGIN
+--     -- Получаем ID отеля для данного филиала (например, из конфигурации)
+--     SELECT current_setting('app.local_hotel_id')::INTEGER INTO local_hotel_id;
     
-    -- Проверяем, что операция выполняется для "своего" отеля
-    IF NEW.hotel_id != local_hotel_id THEN
-        RAISE EXCEPTION 'Cannot modify data for hotel_id %, local hotel_id is %', 
-                       NEW.hotel_id, local_hotel_id;
+--     -- Проверяем, что операция выполняется для "своего" отеля
+--     IF NEW.hotel_id != local_hotel_id THEN
+--         RAISE EXCEPTION 'Cannot modify data for hotel_id %, local hotel_id is %', 
+--                        NEW.hotel_id, local_hotel_id;
+--     END IF;
+    
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
+
+-- -- Применяем триггер к таблицам, привязанным к отелю
+-- CREATE TRIGGER trigger_check_hotel_rooms
+--     BEFORE INSERT OR UPDATE ON rooms
+--     FOR EACH ROW
+--     EXECUTE FUNCTION check_hotel_ownership();
+
+-- CREATE TRIGGER trigger_check_hotel_employees
+--     BEFORE INSERT OR UPDATE ON employees
+--     FOR EACH ROW
+--     EXECUTE FUNCTION check_hotel_ownership();
+
+-- CREATE TRIGGER trigger_check_hotel_reservations
+--     BEFORE INSERT OR UPDATE ON reservations
+--     FOR EACH ROW
+--     EXECUTE FUNCTION check_hotel_ownership();
+
+-- CREATE TRIGGER trigger_check_hotel_amenities
+--     BEFORE INSERT OR UPDATE ON amenities
+--     FOR EACH ROW
+--     EXECUTE FUNCTION check_hotel_ownership();
+
+-- -- 5. Создание функции для автоматического назначения hotel_id
+-- CREATE OR REPLACE FUNCTION set_local_hotel_id()
+-- RETURNS TRIGGER AS $$
+-- DECLARE
+--     local_hotel_id INTEGER;
+-- BEGIN
+--     -- Автоматически назначаем локальный hotel_id
+--     SELECT current_setting('app.local_hotel_id')::INTEGER INTO local_hotel_id;
+--     NEW.hotel_id := local_hotel_id;
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
+
+-- -- Применяем к таблицам при вставке
+-- CREATE TRIGGER trigger_set_hotel_rooms
+--     BEFORE INSERT ON rooms
+--     FOR EACH ROW
+--     EXECUTE FUNCTION set_local_hotel_id();
+
+-- CREATE TRIGGER trigger_set_hotel_amenities
+--     BEFORE INSERT ON amenities
+--     FOR EACH ROW
+--     EXECUTE FUNCTION set_local_hotel_id();
+
+-- 6. Создание функции для разрешения конфликтов гостей (РБОК)
+-- Аналогично центральному узлу
+CREATE OR REPLACE FUNCTION resolve_guest_conflicts()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Если найден конфликт по документу, обновляем существующую запись
+    IF EXISTS (SELECT 1 FROM guests WHERE document = NEW.document AND document IS NOT NULL) THEN
+        UPDATE guests 
+        SET first_name = NEW.first_name,
+            last_name = NEW.last_name,
+            middle_name = NEW.middle_name,
+            phone_number = NEW.phone_number,
+            email = NEW.email,
+            birth_date = NEW.birth_date,
+            loyalty_card_id = COALESCE(NEW.loyalty_card_id, loyalty_card_id),
+            bonus_points = GREATEST(bonus_points, NEW.bonus_points)
+        WHERE document = NEW.document;
+        RETURN NULL; -- Предотвращаем вставку
     END IF;
-    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Применяем триггер к таблицам, привязанным к отелю
-CREATE TRIGGER trigger_check_hotel_rooms
-    BEFORE INSERT OR UPDATE ON rooms
+CREATE TRIGGER trigger_resolve_guest_conflicts
+    BEFORE INSERT ON guests
     FOR EACH ROW
-    EXECUTE FUNCTION check_hotel_ownership();
-
-CREATE TRIGGER trigger_check_hotel_employees
-    BEFORE INSERT OR UPDATE ON employees
-    FOR EACH ROW
-    EXECUTE FUNCTION check_hotel_ownership();
-
-CREATE TRIGGER trigger_check_hotel_reservations
-    BEFORE INSERT OR UPDATE ON reservations
-    FOR EACH ROW
-    EXECUTE FUNCTION check_hotel_ownership();
-
-CREATE TRIGGER trigger_check_hotel_amenities
-    BEFORE INSERT OR UPDATE ON amenities
-    FOR EACH ROW
-    EXECUTE FUNCTION check_hotel_ownership();
-
--- 7. Создание функции для автоматического назначения hotel_id
-CREATE OR REPLACE FUNCTION set_local_hotel_id()
-RETURNS TRIGGER AS $$
-DECLARE
-    local_hotel_id INTEGER;
-BEGIN
-    -- Автоматически назначаем локальный hotel_id
-    SELECT current_setting('app.local_hotel_id')::INTEGER INTO local_hotel_id;
-    NEW.hotel_id := local_hotel_id;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Применяем к таблицам при вставке
-CREATE TRIGGER trigger_set_hotel_rooms
-    BEFORE INSERT ON rooms
-    FOR EACH ROW
-    EXECUTE FUNCTION set_local_hotel_id();
-
-CREATE TRIGGER trigger_set_hotel_amenities
-    BEFORE INSERT ON amenities
-    FOR EACH ROW
-    EXECUTE FUNCTION set_local_hotel_id();
-    
+    EXECUTE FUNCTION resolve_guest_conflicts();
