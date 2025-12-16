@@ -1,26 +1,26 @@
 -- Типы удобств
 CREATE TABLE types_amenities (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
     name VARCHAR(50) NOT NULL UNIQUE
 );
 
 -- Города
 CREATE TABLE cities (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
     city_name VARCHAR(100) NOT NULL,
     country_name_code CHAR(3) NOT NULL
 );
 
 -- Категории отелей
 CREATE TABLE categories_hotel (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
     star_rating SMALLINT NOT NULL CHECK (star_rating BETWEEN 1 AND 5),
     rating_coeff NUMERIC(5,2) NOT NULL
 );
 
 -- Категории номеров
 CREATE TABLE categories_room (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
     category_name VARCHAR(255) NOT NULL UNIQUE,
     guests_capacity INTEGER NOT NULL CHECK (guests_capacity > 0),
     price_per_night NUMERIC(10,2) NOT NULL CHECK (price_per_night >= 0),
@@ -29,7 +29,7 @@ CREATE TABLE categories_room (
 
 -- Карты лояльности
 CREATE TABLE loyalty_cards (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
     program_name VARCHAR(100) NOT NULL UNIQUE,
     req_bonus_amount INTEGER NOT NULL CHECK (req_bonus_amount >= 0),
     discount NUMERIC(5,2) NOT NULL CHECK (discount >= 0)
@@ -37,13 +37,13 @@ CREATE TABLE loyalty_cards (
 
 -- Должности
 CREATE TABLE positions (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
     position_name VARCHAR(100) NOT NULL UNIQUE
 );
 
 -- Отели (moved before employees to fix dependency)
 CREATE TABLE hotels (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
     name VARCHAR(100) NOT NULL,
     city_id INTEGER NOT NULL REFERENCES cities(id),
     address VARCHAR(150) NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE hotels (
 
 -- Гости
 CREATE TABLE guests (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,    
     middle_name VARCHAR(50),
@@ -80,7 +80,8 @@ WHERE email IS NOT NULL;
 
 -- Сотрудники
 CREATE TABLE employees (
-    id SERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY 
+        (START WITH 1 INCREMENT BY 3) PRIMARY KEY, -- Узлы филиалов: 1,2,3 + 3n
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     middle_name VARCHAR(50),
@@ -99,7 +100,8 @@ WHERE email IS NOT NULL;
 
 -- Номера
 CREATE TABLE rooms (
-    id SERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY 
+        (START WITH 1 INCREMENT BY 3) PRIMARY KEY, -- Узлы филиалов: 1,2,3 + 3n
     hotel_id INTEGER NOT NULL REFERENCES hotels(id),
     categories_room_id INTEGER NOT NULL REFERENCES categories_room(id),
     room_number VARCHAR(10)  NOT NULL,
@@ -110,7 +112,8 @@ CREATE TABLE rooms (
 
 -- Удобства
 CREATE TABLE amenities (
-    id SERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY 
+        (START WITH 1 INCREMENT BY 3) PRIMARY KEY, -- Узлы филиалов: 1,2,3 + 3n
     hotel_id INTEGER NOT NULL REFERENCES hotels(id),
     types_amenities_id INTEGER NOT NULL REFERENCES types_amenities(id),
     price NUMERIC(10,2) NOT NULL CHECK (price >= 0)
@@ -118,7 +121,8 @@ CREATE TABLE amenities (
 
 -- Бронирование
 CREATE TABLE reservations (
-    id SERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY 
+        (START WITH 1 INCREMENT BY 3) PRIMARY KEY, -- Узлы филиалов: 1,2,3 + 3n
     hotel_id INTEGER NOT NULL REFERENCES hotels(id),
     employee_id INTEGER REFERENCES employees(id),
     create_date TIMESTAMP NOT NULL,
@@ -132,10 +136,11 @@ CREATE TABLE reservations (
 
 -- Детали бронирования
 CREATE TABLE details_reservations (
-    id SERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY 
+        (START WITH 1 INCREMENT BY 3) PRIMARY KEY, -- Узлы филиалов: 1,2,3 + 3n
     reservation_id INTEGER NOT NULL REFERENCES reservations(id),
     room_id INTEGER REFERENCES rooms(id),
-    guest_id                INTEGER NOT NULL REFERENCES guests(id),
+    guest_id INTEGER NOT NULL REFERENCES guests(id),
     requested_room_category INTEGER NOT NULL REFERENCES categories_room(id),
     total_guest_number INTEGER NOT NULL CHECK (total_guest_number > 0),
     UNIQUE (reservation_id, room_id, guest_id)
@@ -143,7 +148,8 @@ CREATE TABLE details_reservations (
 
 -- Платежи
 CREATE TABLE payments (
-    id SERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY 
+        (START WITH 1 INCREMENT BY 3) PRIMARY KEY, -- Узлы филиалов: 1,2,3 + 3n
     reservation_id INTEGER NOT NULL REFERENCES reservations(id),
     payments_sum NUMERIC(12,2) NOT NULL CHECK (payments_sum >= 0),
     payments_date DATE NOT NULL,
@@ -153,15 +159,16 @@ CREATE TABLE payments (
 -- Распределение гостей по комнатам
 CREATE TABLE room_reservation_guests (
     room_reservation_id INTEGER NOT NULL REFERENCES details_reservations(id),
-    guest_id            INTEGER NOT NULL REFERENCES guests(id),
+    guest_id INTEGER NOT NULL REFERENCES guests(id),
     PRIMARY KEY (room_reservation_id, guest_id)
 );
 
 -- Платежи за удобства
 CREATE TABLE payments_amenities (
-    id SERIAL PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY 
+        (START WITH 1 INCREMENT BY 3) PRIMARY KEY, -- Узлы филиалов: 1,2,3 + 3n
     hotel_amenities_id INTEGER NOT NULL REFERENCES amenities(id),
     payment_id INTEGER NOT NULL REFERENCES payments(id),
     quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
-    total_amenities_price   NUMERIC(12,2) NOT NULL CHECK (total_amenities_price >= 0)
+    total_amenities_price NUMERIC(12,2) NOT NULL CHECK (total_amenities_price >= 0)
 );

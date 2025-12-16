@@ -109,28 +109,28 @@ GRANT SELECT ON guests TO repuser;
 
 -- 6. Создание функции для разрешения конфликтов гостей (РБОК)
 -- Аналогично центральному узлу
-CREATE OR REPLACE FUNCTION resolve_guest_conflicts()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Если найден конфликт по документу, обновляем существующую запись
-    IF EXISTS (SELECT 1 FROM guests WHERE document = NEW.document AND document IS NOT NULL) THEN
-        UPDATE guests 
-        SET first_name = NEW.first_name,
-            last_name = NEW.last_name,
-            middle_name = NEW.middle_name,
-            phone_number = NEW.phone_number,
-            email = NEW.email,
-            birth_date = NEW.birth_date,
-            loyalty_card_id = COALESCE(NEW.loyalty_card_id, loyalty_card_id),
-            bonus_points = GREATEST(bonus_points, NEW.bonus_points)
-        WHERE document = NEW.document;
-        RETURN NULL; -- Предотвращаем вставку
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- CREATE OR REPLACE FUNCTION resolve_guest_conflicts()
+-- RETURNS TRIGGER AS $$
+-- BEGIN
+--     -- Если найден конфликт по документу, обновляем существующую запись
+--     IF EXISTS (SELECT 1 FROM guests WHERE document = NEW.document AND document IS NOT NULL) THEN
+--         UPDATE guests 
+--         SET first_name = NEW.first_name,
+--             last_name = NEW.last_name,
+--             middle_name = NEW.middle_name,
+--             phone_number = NEW.phone_number,
+--             email = NEW.email,
+--             birth_date = NEW.birth_date,
+--             loyalty_card_id = COALESCE(NEW.loyalty_card_id, loyalty_card_id),
+--             bonus_points = GREATEST(bonus_points, NEW.bonus_points)
+--         WHERE document = NEW.document;
+--         RETURN NULL; -- Предотвращаем вставку
+--     END IF;
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_resolve_guest_conflicts
-    BEFORE INSERT ON guests
-    FOR EACH ROW
-    EXECUTE FUNCTION resolve_guest_conflicts();
+-- CREATE TRIGGER trigger_resolve_guest_conflicts
+--     BEFORE INSERT ON guests
+--     FOR EACH ROW
+--     EXECUTE FUNCTION resolve_guest_conflicts();
