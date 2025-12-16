@@ -58,7 +58,8 @@ CREATE TABLE hotels (
 
 -- Гости
 CREATE TABLE guests (
-    id SERIAL PRIMARY KEY, -- Центральный узел - оставляем SERIAL
+    id BIGINT GENERATED ALWAYS AS IDENTITY 
+        (START WITH 1 INCREMENT BY 3) PRIMARY KEY, -- Узлы филиалов: 1,2,3 + 3n
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,    
     middle_name VARCHAR(50),

@@ -5,6 +5,7 @@
 
 -- Настройка IDENTITY для узла 3
 -- Для PostgreSQL нужно изменить параметры последовательности напрямую
+SELECT setval(pg_get_serial_sequence('guests', 'id'), 3, false);
 SELECT setval(pg_get_serial_sequence('employees', 'id'), 3, false);
 SELECT setval(pg_get_serial_sequence('rooms', 'id'), 3, false);
 SELECT setval(pg_get_serial_sequence('amenities', 'id'), 3, false);
@@ -54,16 +55,16 @@ VALUES
 -- Бронирования для отеля 3 - ID будут: 3, 6, 9
 INSERT INTO reservations (hotel_id, employee_id, create_date, status, total_price, payments_status, payer_id, start_date, end_date)
 VALUES
-(3, 3, '2024-05-01 10:15:00', 'confirmed', 35000.00, 'paid', 5, '2024-06-01', '2024-06-05'),
+(3, 3, '2024-05-01 10:15:00', 'confirmed', 35000.00, 'paid', 3, '2024-06-01', '2024-06-05'),
 (3, 6, '2024-05-10 16:45:00', 'pending', 28000.00, 'unpaid', 6, '2024-06-15', '2024-06-18'),
-(3, 3, '2024-05-15 11:30:00', 'confirmed', 45000.00, 'paid', 5, '2024-07-01', '2024-07-03');
+(3, 3, '2024-05-15 11:30:00', 'confirmed', 45000.00, 'paid', 3, '2024-07-01', '2024-07-03');
 
 -- Детали бронирования - ID будут: 3, 6, 9
 INSERT INTO details_reservations (reservation_id, room_id, guest_id, requested_room_category, total_guest_number)
 VALUES
-(3, 21, 5, 3, 2),
+(3, 21, 3, 3, 2),
 (6, 6, 6, 1, 1),
-(9, 24, 5, 3, 4);
+(9, 24, 3, 3, 4);
 
 -- Платежи - ID будут: 3, 6
 INSERT INTO payments (reservation_id, payments_sum, payments_date, payments_method) VALUES
@@ -72,9 +73,9 @@ INSERT INTO payments (reservation_id, payments_sum, payments_date, payments_meth
 
 -- Распределение гостей по комнатам
 INSERT INTO room_reservation_guests (room_reservation_id, guest_id) VALUES
-(3, 5),
+(3, 3),
 (6, 6),
-(9, 5);
+(9, 3);
 
 -- Платежи за удобства - ID будут: 3, 6
 INSERT INTO payments_amenities (hotel_amenities_id, payment_id, quantity, total_amenities_price) VALUES

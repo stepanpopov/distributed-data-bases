@@ -5,6 +5,7 @@
 
 -- Настройка IDENTITY для узла 1
 -- Для PostgreSQL нужно изменить параметры последовательности напрямую
+SELECT setval(pg_get_serial_sequence('guests', 'id'), 1, false);
 SELECT setval(pg_get_serial_sequence('employees', 'id'), 1, false);
 SELECT setval(pg_get_serial_sequence('rooms', 'id'), 1, false);
 SELECT setval(pg_get_serial_sequence('amenities', 'id'), 1, false);
@@ -53,13 +54,13 @@ VALUES
 INSERT INTO reservations (hotel_id, employee_id, create_date, status, total_price, payments_status, payer_id, start_date, end_date)
 VALUES
 (1, 1, '2024-03-01 10:30:00', 'confirmed', 15000.00, 'paid', 1, '2024-03-10', '2024-03-15'),
-(1, 4, '2024-03-15 14:20:00', 'pending', 25000.00, 'unpaid', 2, '2024-04-01', '2024-04-05');
+(1, 4, '2024-03-15 14:20:00', 'pending', 25000.00, 'unpaid', 4, '2024-04-01', '2024-04-05');
 
 -- Детали бронирования - ID будут: 1, 4
 INSERT INTO details_reservations (reservation_id, room_id, guest_id, requested_room_category, total_guest_number)
 VALUES
 (1, 1, 1, 1, 2),
-(4, 4, 2, 3, 1);
+(4, 4, 4, 3, 1);
 
 -- Платежи - ID = 1
 INSERT INTO payments (reservation_id, payments_sum, payments_date, payments_method) VALUES
@@ -68,7 +69,7 @@ INSERT INTO payments (reservation_id, payments_sum, payments_date, payments_meth
 -- Распределение гостей по комнатам
 INSERT INTO room_reservation_guests (room_reservation_id, guest_id) VALUES
 (1, 1),
-(4, 2);
+(4, 4);
 
 -- Платежи за удобства - ID = 1
 INSERT INTO payments_amenities (hotel_amenities_id, payment_id, quantity, total_amenities_price) VALUES
