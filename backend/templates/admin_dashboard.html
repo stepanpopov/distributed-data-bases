@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Админская панель{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>🏢 Админская панель</h1>
+            <p class="text-muted">Выберите город для управления отелями</p>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for city in cities %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">
+                        🏙️ {{ city.city_name }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>Количество отелей:</strong> {{ city.hotels_count }}
+                    </p>
+                    <p class="text-muted">
+                        Управление отелями и настройками города
+                    </p>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('admin_city', city_name=city.city_name) }}" 
+                       class="btn btn-primary btn-block">
+                        Управлять городом
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if not cities %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h4>Нет доступных городов</h4>
+                <p>В системе пока нет городов для управления.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📊 Статистика системы</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 class="text-primary">{{ cities|length }}</h3>
+                                <p class="text-muted">Городов</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 class="text-success">{{ cities|sum(attribute='hotels_count') }}</h3>
+                                <p class="text-muted">Отелей всего</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 class="text-info">3</h3>
+                                <p class="text-muted">Филиалов</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 class="text-warning">🚀</h3>
+                                <p class="text-muted">Статус системы</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

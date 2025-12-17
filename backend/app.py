@@ -1,128 +1,3 @@
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# from database import db_manager
-# import logging
-# from datetime import datetime
-# from json_encoder import CustomJSONEncoder
-
-# # Импорт сервисов
-# from services.booking_service import BookingService
-# from services.payment_service import PaymentService
-# from services.availability_service import AvailabilityService
-# from services.hotel_service import HotelService
-
-# app = Flask(__name__)
-# CORS(app)
-
-# app.json_encoder = CustomJSONEncoder
-
-# # Настройка логирования
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
-
-# # Инициализация сервисов
-# booking_service = BookingService(db_manager)
-# payment_service = PaymentService(db_manager)
-# availability_service = AvailabilityService(db_manager)
-# hotel_service = HotelService(db_manager)
-
-# @app.route('/api/health', methods=['GET'])
-# def health_check():
-#     """Проверка работоспособности API"""
-#     try:
-#         # Простая проверка
-#         return jsonify({
-#             'status': 'healthy',
-#             'message': 'API is running',
-#             'timestamp': datetime.now().isoformat()  # Теперь datetime определен
-#         }), 200
-#     except Exception as e:
-#         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
-
-# @app.route('/api/hotels', methods=['GET'])
-# def get_hotels():
-#     """Получить список отелей"""
-#     try:
-#         city = request.args.get('city')
-#         hotels = hotel_service.get_all_hotels(city)
-#         return jsonify(hotels)
-#     except Exception as e:
-#         logger.error(f"Error getting hotels: {e}")
-#         return jsonify({'error': str(e)}), 500
-
-# @app.route('/api/hotels/<int:hotel_id>', methods=['GET'])
-# def get_hotel(hotel_id):
-#     """Получить информацию об отеле"""
-#     try:
-#         hotel = hotel_service.get_hotel_details(hotel_id)
-#         if hotel:
-#             return jsonify(hotel)
-#         return jsonify({'error': 'Hotel not found'}), 404
-#     except Exception as e:
-#         logger.error(f"Error getting hotel: {e}")
-#         return jsonify({'error': str(e)}), 500
-
-# @app.route('/api/test', methods=['GET'])
-# def test_endpoint():
-#     """Тестовый эндпоинт"""
-#     return jsonify({
-#         'message': 'API is working!',
-#         'timestamp': datetime.now().isoformat(),  # И здесь тоже
-#         'endpoints': [
-#             '/api/health',
-#             '/api/hotels',
-#             '/api/test',
-#             '/api/hotels/<id>'
-#         ]
-#     })
-
-# @app.route('/api/hotels/<int:hotel_id>/rooms', methods=['GET'])
-# def get_hotel_rooms(hotel_id):
-#     """Получить доступные категории номеров в отеле"""
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-
-#         if start_date and end_date:
-#             # Если есть даты, проверяем доступность
-#             categories = availability_service.get_available_room_categories(
-#                 hotel_id, start_date, end_date
-#             )
-#         else:
-#             # Иначе просто список всех категорий номеров отеля
-#             categories = hotel_service.get_hotel_rooms(hotel_id)
-
-#         return jsonify(categories)
-#     except Exception as e:
-#         logger.error(f"Error getting hotel rooms: {e}")
-#         return jsonify({'error': str(e)}), 500
-
-# @app.route('/api/check-availability', methods=['GET'])
-# def check_availability():
-#     """Проверить доступность номера"""
-#     try:
-#         hotel_id = request.args.get('hotel_id')
-#         room_category_id = request.args.get('room_category_id')
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-
-#         if not all([hotel_id, room_category_id, start_date, end_date]):
-#             return jsonify({'error': 'Missing required parameters'}), 400
-
-#         result = availability_service.check_room_availability(
-#             int(hotel_id), int(room_category_id), start_date, end_date
-#         )
-
-#         if 'error' in result:
-#             return jsonify(result), result.get('status', 400)
-
-#         return jsonify(result)
-#     except Exception as e:
-#         logger.error(f"Error checking availability: {e}")
-#         return jsonify({'error': str(e)}), 500
-
-# if __name__ == '__main__':
-#     app.run(host='0.0.0.0', port=5000, debug=True)
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
 from flask_cors import CORS
 from database import db_manager
@@ -293,9 +168,33 @@ def process_payment_html():
         amount = request.form.get('amount')
         method = request.form.get('method', 'card')
 
+        # Валидация параметров
+        if not reservation_id:
+            flash('Ошибка: не указан номер бронирования', 'error')
+            return redirect(url_for('index'))
+
+        if not amount:
+            flash('Ошибка: не указана сумма оплаты', 'error')
+            return redirect(url_for('payment_form', reservation_id=reservation_id))
+
+        # Проверяем, что сумма является числом
+        try:
+            amount_float = float(amount)
+            if amount_float <= 0:
+                flash('Ошибка: сумма оплаты должна быть больше нуля', 'error')
+                return redirect(url_for('payment_form', reservation_id=reservation_id))
+        except (ValueError, TypeError):
+            flash('Ошибка: некорректная сумма оплаты', 'error')
+            return redirect(url_for('payment_form', reservation_id=reservation_id))
+
+        # Проверяем, что метод оплаты корректен
+        if method not in ['cash', 'card', 'online']:
+            flash('Ошибка: некорректный метод оплаты', 'error')
+            return redirect(url_for('payment_form', reservation_id=reservation_id))
+
         payment_data = {
-            'reservation_id': reservation_id,
-            'amount': float(amount),
+            'reservation_id': int(reservation_id),
+            'amount': amount_float,
             'method': method
         }
 
@@ -308,10 +207,56 @@ def process_payment_html():
         flash('Оплата прошла успешно!', 'success')
         return redirect(url_for('index'))
 
+    except ValueError as e:
+        logger.error(f"Validation error in payment: {e}")
+        flash('Ошибка: некорректные данные для оплаты', 'error')
+        return redirect(url_for('payment_form', reservation_id=reservation_id if reservation_id else 1))
     except Exception as e:
         logger.error(f"Error processing payment: {e}")
         flash(f'Ошибка: {str(e)}', 'error')
-        return redirect(url_for('payment_form', reservation_id=reservation_id))
+        return redirect(url_for('payment_form', reservation_id=reservation_id if reservation_id else 1))
+
+@app.route('/admin')
+def admin_dashboard():
+    """Админская панель - выбор города"""
+    try:
+        # Получаем список всех городов из центральной БД (справочник)
+        with db_manager.get_cursor('central') as cursor:
+            cursor.execute("""
+                SELECT DISTINCT c.city_name, COUNT(h.id) as hotels_count
+                FROM cities c
+                LEFT JOIN hotels h ON c.id = h.city_id
+                GROUP BY c.id, c.city_name
+                ORDER BY c.city_name
+            """)
+            
+            cities = cursor.fetchall()
+            cities_list = []
+            for city in cities:
+                city_dict = {
+                    'city_name': city['city_name'],
+                    'hotels_count': city['hotels_count']
+                }
+                cities_list.append(city_dict)
+            
+        return render_template('admin_dashboard.html', cities=cities_list)
+    except Exception as e:
+        logger.error(f"Error loading admin dashboard: {e}")
+        return render_template('error.html', error=str(e))
+
+@app.route('/admin/<city_name>')
+def admin_city(city_name):
+    """Админка города - список отелей"""
+    try:
+        hotels = hotel_service.get_all_hotels(city_name)
+        if not hotels:
+            flash(f'В городе {city_name} нет отелей', 'warning')
+            return redirect(url_for('admin_dashboard'))
+            
+        return render_template('admin_city.html', city_name=city_name, hotels=hotels)
+    except Exception as e:
+        logger.error(f"Error loading admin city {city_name}: {e}")
+        return render_template('error.html', error=str(e))
 
 @app.route('/admin/hotels/<int:hotel_id>')
 def admin_hotel(hotel_id):
