@@ -472,7 +472,7 @@ def reception_city(city_name):
         with db_manager.get_cursor(db_name) as cursor:
             cursor.execute("""
                 SELECT r.id, r.hotel_id, r.create_date, r.start_date, r.end_date,
-                       r.status, r.total_price, r.payments_status,
+                       r.status, r.total_price, r.payments_status, r.payer_id,
                        g.first_name, g.last_name, g.phone_number, g.email,
                        h.name as hotel_name,
                        dr.requested_room_category, dr.total_guest_number, dr.room_id,
@@ -486,7 +486,7 @@ def reception_city(city_name):
                 LEFT JOIN room_reservation_guests rrg ON rrg.room_reservation_id = dr.id
                 WHERE r.status IN ('pending', 'confirmed')
                 GROUP BY r.id, r.hotel_id, r.create_date, r.start_date, r.end_date,
-                         r.status, r.total_price, r.payments_status,
+                         r.status, r.total_price, r.payments_status, r.payer_id,
                          g.first_name, g.last_name, g.phone_number, g.email,
                          h.name, dr.requested_room_category, dr.total_guest_number,
                          dr.room_id, cr.category_name

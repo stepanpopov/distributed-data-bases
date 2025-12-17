@@ -68,6 +68,17 @@ class BookingService:
                 if not cursor.fetchone():
                     return {'error': 'Room category not found', 'status': 404}
 
+            # 🔍 КРИТИЧНОЕ ДОБАВЛЕНИЕ: Проверяем доступность номеров перед созданием бронирования
+            availability_check = self._check_room_availability_for_booking(
+                hotel_id, room_category_id, start_date, end_date
+            )
+            
+            if not availability_check['available']:
+                return {
+                    'error': f'No available rooms of this category for the selected dates. Available: {availability_check["available_count"]}, Required: 1',
+                    'status': 409  # Conflict
+                }
+
             # Рассчитываем общую цену
             total_price = self._calculate_total_price(
                 hotel_id,
@@ -240,14 +251,20 @@ class BookingService:
         try:
             # Сначала определяем, в какой БД находится бронирование
             with self.db.get_cursor('central') as cursor:
-                cursor.execute("SELECT id, hotel_id, payer_id FROM reservations WHERE id = %s", (reservation_id,))
+                cursor.execute("""
+                    SELECT r.id, r.hotel_id, r.payer_id, r.start_date, r.end_date
+                    FROM reservations r 
+                    WHERE r.id = %s
+                """, (reservation_id,))
                 reservation = cursor.fetchone()
 
                 if not reservation:
                     return {'error': 'Reservation not found', 'status': 404}
 
                 hotel_id = reservation['hotel_id']
-                payer_guest_id = reservation['payer_id']  # Реальный ID гостя
+                payer_guest_id = reservation['payer_id']
+                start_date = reservation['start_date']
+                end_date = reservation['end_date']
 
             # Определяем филиальную БД для работы с локальными данными
             city_name = self._get_city_by_hotel(hotel_id)
@@ -269,6 +286,24 @@ class BookingService:
 
                 if not room:
                     return {'error': 'Room not found in this hotel', 'status': 400}
+
+                # ВАЖНО: Проверяем, что номер не занят на эти даты другими бронированиями
+                cursor.execute("""
+                    SELECT res.id, res.start_date, res.end_date
+                    FROM reservations res
+                    JOIN details_reservations dr ON dr.reservation_id = res.id
+                    WHERE dr.room_id = %s 
+                    AND res.status IN ('confirmed', 'pending')
+                    AND res.id != %s
+                    AND NOT (res.end_date <= %s OR res.start_date >= %s)
+                """, (room_id, reservation_id, start_date, end_date))
+
+                conflicting_reservation = cursor.fetchone()
+                if conflicting_reservation:
+                    return {
+                        'error': f'Room is already occupied by another reservation (ID: {conflicting_reservation["id"]}) for these dates',
+                        'status': 409
+                    }
 
                 # Привязываем номер к бронированию
                 cursor.execute("""
@@ -314,7 +349,7 @@ class BookingService:
                     WHERE id = %s
                 """, (reservation_id,))
 
-            logger.info(f"Guests registered for reservation {reservation_id} in {db_name}")
+            logger.info(f"Guests registered for reservation {reservation_id} in {db_name}, assigned room {room_id}")
             return {'success': True, 'message': 'Guests registered successfully'}
 
         except Exception as e:

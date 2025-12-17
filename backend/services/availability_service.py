@@ -53,28 +53,46 @@ class AvailabilityService:
                 db_name = 'central'
 
             with self.db.get_cursor(db_name) as cursor:
-                # Находим доступные номера
+                # Сначала проверяем общее количество номеров данной категории
                 cursor.execute("""
-                    SELECT r.id, r.room_number, r.floor, r.view,
-                           COUNT(*) OVER() as total_available
+                    SELECT COUNT(*) as total_rooms
                     FROM rooms r
-                    WHERE r.hotel_id = %s
-                    AND r.categories_room_id = %s
-                    AND NOT EXISTS (
-                        SELECT 1
-                        FROM reservations res
-                        JOIN details_reservations dr ON dr.reservation_id = res.id
-                        WHERE dr.room_id = r.id
-                        AND res.status IN ('confirmed', 'pending')
-                        AND (
-                            (res.start_date <= %s AND res.end_date >= %s)
-                        )
-                    )
-                    ORDER BY r.room_number
-                    LIMIT 10
-                """, (hotel_id, room_category_id, end_date, start_date))
+                    WHERE r.hotel_id = %s AND r.categories_room_id = %s
+                """, (hotel_id, room_category_id))
+                
+                total_result = cursor.fetchone()
+                total_rooms = total_result['total_rooms'] if total_result else 0
+                
+                # Подсчитываем занятые номера на указанные даты
+                cursor.execute("""
+                    SELECT COUNT(*) as reserved_rooms
+                    FROM reservations res
+                    JOIN details_reservations dr ON dr.reservation_id = res.id
+                    WHERE res.hotel_id = %s
+                    AND dr.requested_room_category = %s
+                    AND res.status IN ('confirmed', 'pending')
+                    AND NOT (res.end_date <= %s OR res.start_date >= %s)
+                """, (hotel_id, room_category_id, start_date, end_date))
 
-                available_rooms = cursor.fetchall()
+                reserved_result = cursor.fetchone()
+                reserved_rooms = reserved_result['reserved_rooms'] if reserved_result else 0
+                
+                # Доступные номера = общее количество - зарезервированные
+                available_rooms_count = max(0, total_rooms - reserved_rooms)
+                
+                # Если есть доступные номера, получаем примеры
+                available_rooms = []
+                if available_rooms_count > 0:
+                    cursor.execute("""
+                        SELECT r.id, r.room_number, r.floor, r.view
+                        FROM rooms r
+                        WHERE r.hotel_id = %s
+                        AND r.categories_room_id = %s
+                        ORDER BY r.room_number
+                        LIMIT 5
+                    """, (hotel_id, room_category_id))
+                    
+                    available_rooms = cursor.fetchall()
 
             # Информация о категории номера берется из центральной БД (справочник - РОК)
             with self.db.get_cursor('central') as cursor:
@@ -100,13 +118,15 @@ class AvailabilityService:
                 total_price = price_per_night * location_coeff * nights
 
                 result = {
-                    'available': len(available_rooms) > 0,
-                    'available_rooms_count': len(available_rooms),
+                    'available': available_rooms_count > 0,
+                    'available_rooms_count': available_rooms_count,
+                    'total_rooms': total_rooms,
+                    'reserved_rooms': reserved_rooms,
                     'total_price': round(total_price, 2),
                     'price_per_night': round(price_per_night * location_coeff, 2),
                     'nights': nights,
                     'room_info': self._convert_to_serializable(dict(room_info)) if room_info else {},
-                    'available_rooms': [self._convert_to_serializable(dict(room)) for room in available_rooms[:5]]
+                    'available_rooms': [self._convert_to_serializable(dict(room)) for room in available_rooms]
                 }
 
                 return result
@@ -142,25 +162,37 @@ class AvailabilityService:
             else:
                 db_name = 'central'
 
-            # Сначала получаем доступные номера по категориям из филиальной БД
+            # Получаем доступность по категориям из филиальной БД
             with self.db.get_cursor(db_name) as cursor:
                 cursor.execute("""
-                    SELECT r.categories_room_id, COUNT(DISTINCT r.id) as available_rooms_count
-                    FROM rooms r
-                    WHERE r.hotel_id = %s
-                    AND NOT EXISTS (
-                        SELECT 1
+                    WITH room_counts AS (
+                        SELECT 
+                            r.categories_room_id,
+                            COUNT(*) as total_rooms
+                        FROM rooms r
+                        WHERE r.hotel_id = %s
+                        GROUP BY r.categories_room_id
+                    ),
+                    reserved_counts AS (
+                        SELECT 
+                            dr.requested_room_category,
+                            COUNT(*) as reserved_rooms
                         FROM reservations res
                         JOIN details_reservations dr ON dr.reservation_id = res.id
-                        WHERE dr.room_id = r.id
+                        WHERE res.hotel_id = %s
                         AND res.status IN ('confirmed', 'pending')
-                        AND (
-                            (res.start_date <= %s AND res.end_date >= %s)
-                        )
+                        AND NOT (res.end_date <= %s OR res.start_date >= %s)
+                        GROUP BY dr.requested_room_category
                     )
-                    GROUP BY r.categories_room_id
-                    HAVING COUNT(DISTINCT r.id) > 0
-                """, (hotel_id, end_date, start_date))
+                    SELECT 
+                        rc.categories_room_id,
+                        rc.total_rooms,
+                        COALESCE(rsc.reserved_rooms, 0) as reserved_rooms,
+                        (rc.total_rooms - COALESCE(rsc.reserved_rooms, 0)) as available_rooms_count
+                    FROM room_counts rc
+                    LEFT JOIN reserved_counts rsc ON rc.categories_room_id = rsc.requested_room_category
+                    WHERE (rc.total_rooms - COALESCE(rsc.reserved_rooms, 0)) > 0
+                """, (hotel_id, hotel_id, start_date, end_date))
 
                 available_categories = cursor.fetchall()
 
@@ -244,25 +276,16 @@ class AvailabilityService:
                 db_name = 'central'
 
             with self.db.get_cursor(db_name) as cursor:
+                # Получаем конкретные доступные номера (примеры)
                 cursor.execute("""
                     SELECT r.*, cr.category_name, cr.guests_capacity, cr.price_per_night
                     FROM rooms r
                     JOIN categories_room cr ON r.categories_room_id = cr.id
                     WHERE r.hotel_id = %s
                     AND r.categories_room_id = %s
-                    AND NOT EXISTS (
-                        SELECT 1
-                        FROM reservations res
-                        JOIN details_reservations dr ON dr.reservation_id = res.id
-                        WHERE dr.room_id = r.id
-                        AND res.status IN ('confirmed', 'pending')
-                        AND (
-                            (res.start_date <= %s AND res.end_date >= %s)
-                        )
-                    )
                     ORDER BY r.room_number
                     LIMIT %s
-                """, (hotel_id, room_category_id, end_date, start_date, limit))
+                """, (hotel_id, room_category_id, limit))
 
                 rooms = cursor.fetchall()
                 # Конвертируем

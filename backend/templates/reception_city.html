@@ -115,7 +115,7 @@
                             <td>
                                 {% if reservation.status == 'pending' or (reservation.status == 'confirmed' and not reservation.room_id) %}
                                 <button class="btn btn-outline-primary btn-sm mb-1"
-                                        onclick="openRegisterModal({{ reservation.id }}, '{{ (reservation.first_name + ' ' + reservation.last_name)|replace("'", "\\'") }}', {{ reservation.hotel_id }}, {{ reservation.requested_room_category or 'null' }}, '{{ reservation.start_date }}', '{{ reservation.end_date }}')">
+                                        onclick="openRegisterModal({{ reservation.id }}, '{{ (reservation.first_name + ' ' + reservation.last_name)|replace("'", "\\'") }}', {{ reservation.hotel_id }}, {{ reservation.requested_room_category or 'null' }}, '{{ reservation.start_date }}', '{{ reservation.end_date }}', {{ reservation.payer_id or 'null' }})">
                                     🏨 Зарегистрировать
                                 </button>
                                 {% else %}
@@ -215,10 +215,13 @@
 
 {% block scripts %}
 <script>
-    function openRegisterModal(reservationId, guestName, hotelId, roomCategoryId, startDate, endDate) {
+    function openRegisterModal(reservationId, guestName, hotelId, roomCategoryId, startDate, endDate, payerId) {
         // Показываем модальное окно
         var modal = new bootstrap.Modal(document.getElementById('registerModal'));
         modal.show();
+
+        // Сохраняем payerId для использования в форме
+        window.currentPayerId = payerId;
 
         // Загружаем доступные номера
         var xhr = new XMLHttpRequest();
@@ -228,7 +231,7 @@
                 if (xhr.status === 200) {
                     var rooms = JSON.parse(xhr.responseText);
                     if (rooms.length > 0) {
-                        displayRoomsForm(reservationId, guestName, rooms);
+                        displayRoomsForm(reservationId, guestName, rooms, payerId);
                     } else {
                         document.getElementById('modalContent').innerHTML =
                             '<div class="alert alert-warning">' +
@@ -248,7 +251,7 @@
         xhr.send();
     }
 
-    function displayRoomsForm(reservationId, guestName, rooms) {
+    function displayRoomsForm(reservationId, guestName, rooms, payerId) {
         var roomOptions = '';
         for (var i = 0; i < rooms.length; i++) {
             var room = rooms[i];
@@ -277,7 +280,7 @@
         content += '<div class="mb-3">';
         content += '<label class="form-label">Регистрируем основного гостя:</label>';
         content += '<div class="form-check">';
-        content += '<input type="checkbox" name="guest_ids" value="1" checked disabled>';
+        content += '<input type="checkbox" name="guest_ids" value="' + payerId + '" checked disabled>';
         content += '<label class="form-check-label">' + guestName + ' (основной гость)</label>';
         content += '</div>';
         content += '<small class="text-muted">Основной гость регистрируется автоматически</small>';

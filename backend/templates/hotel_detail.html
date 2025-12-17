@@ -42,13 +42,6 @@
                             <strong>Номеров в отеле:</strong> {{ room.room_count }}<br>
                             <strong>Описание:</strong> {{ room.description }}
                         </p>
-                        <button class="btn btn-primary btn-sm" onclick="checkAvailability('{{ hotel.id }}', '{{ room.categories_room_id }}')">
-                            Проверить доступность
-                        </button>
-                        <a href="/hotels/{{ hotel.id }}/book?room_category_id={{ room.categories_room_id }}"
-                           class="btn btn-success btn-sm">
-                            Забронировать
-                        </a>
                     </div>
                 </div>
             </div>
