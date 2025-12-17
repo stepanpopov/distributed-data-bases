@@ -419,3 +419,66 @@ class BookingService:
             logger.error(f"Error calculating price: {e}")
             # Возвращаем примерную цену в случае ошибки
             return 1000 * nights
+
+    def _check_room_availability_for_booking(self, hotel_id: int, room_category_id: int,
+                                           start_date: str, end_date: str) -> Dict[str, Any]:
+        """Проверить доступность номеров для бронирования (внутренний метод)"""
+        try:
+            # Определяем город отеля для правильного выбора БД
+            city_name = self._get_city_by_hotel(hotel_id)
+            
+            # Номера и бронирования хранятся в филиальных БД (РКД)
+            if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+                db_mapping = {
+                    'Москва': 'filial1',
+                    'Санкт-Петербург': 'filial2',
+                    'Казань': 'filial3'
+                }
+                db_name = db_mapping.get(city_name, 'central')
+            else:
+                db_name = 'central'
+
+            with self.db.get_cursor(db_name) as cursor:
+                # Подсчитываем общее количество номеров данной категории
+                cursor.execute("""
+                    SELECT COUNT(*) as total_rooms
+                    FROM rooms r
+                    WHERE r.hotel_id = %s AND r.categories_room_id = %s
+                """, (hotel_id, room_category_id))
+                
+                total_result = cursor.fetchone()
+                total_rooms = total_result['total_rooms'] if total_result else 0
+                
+                # Подсчитываем занятые номера на указанные даты
+                cursor.execute("""
+                    SELECT COUNT(*) as reserved_rooms
+                    FROM reservations res
+                    JOIN details_reservations dr ON dr.reservation_id = res.id
+                    WHERE res.hotel_id = %s
+                    AND dr.requested_room_category = %s
+                    AND res.status IN ('confirmed', 'pending')
+                    AND NOT (res.end_date <= %s OR res.start_date >= %s)
+                """, (hotel_id, room_category_id, start_date, end_date))
+
+                reserved_result = cursor.fetchone()
+                reserved_rooms = reserved_result['reserved_rooms'] if reserved_result else 0
+                
+                # Доступные номера = общее количество - зарезервированные
+                available_rooms_count = max(0, total_rooms - reserved_rooms)
+                
+                return {
+                    'available': available_rooms_count > 0,
+                    'available_count': available_rooms_count,
+                    'total_rooms': total_rooms,
+                    'reserved_rooms': reserved_rooms
+                }
+
+        except Exception as e:
+            logger.error(f"Error checking room availability for booking: {e}")
+            return {
+                'available': False,
+                'available_count': 0,
+                'total_rooms': 0,
+                'reserved_rooms': 0,
+                'error': str(e)
+            }

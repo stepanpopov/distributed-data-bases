@@ -226,3 +226,81 @@ class HotelService:
         except Exception as e:
             logger.error(f"Error getting city by hotel: {e}")
             return None
+
+    def get_hotel_room_categories_with_counts(self, hotel_id: int) -> List[Dict]:
+        """Получить категории номеров отеля с количеством и ценами"""
+        try:
+            with self.db.get_cursor('central') as cursor:
+                cursor.execute("""
+                    SELECT DISTINCT cr.id as categories_room_id, cr.category_name, cr.guests_capacity,
+                           cr.price_per_night, cr.description,
+                           h.location_coeff_room,
+                           COUNT(r.id) as total_rooms_count
+                    FROM categories_room cr
+                    JOIN hotels h ON h.id = %s
+                    LEFT JOIN rooms r ON r.categories_room_id = cr.id AND r.hotel_id = %s
+                    GROUP BY cr.id, cr.category_name, cr.guests_capacity,
+                             cr.price_per_night, cr.description, h.location_coeff_room
+                    HAVING COUNT(r.id) > 0
+                    ORDER BY cr.price_per_night
+                """, (hotel_id, hotel_id))
+
+                rooms_data = cursor.fetchall()
+
+                # Конвертируем в нужный формат с ценой, включающей коэффициент
+                rooms = []
+                for room in rooms_data:
+                    room_dict = dict(room)
+                    location_coeff = float(room['location_coeff_room'] or 1.0)
+                    price_per_night = float(room['price_per_night'])
+
+                    room_dict['price_per_night'] = round(price_per_night * location_coeff, 2)
+                    room_dict['room_count'] = room['total_rooms_count']
+                    room_dict = self._convert_to_serializable(room_dict)
+                    rooms.append(room_dict)
+
+                return rooms
+
+        except Exception as e:
+            logger.error(f"Error getting room categories with counts: {e}")
+            return []
+
+    def get_room_category_details(self, room_category_id: int) -> Optional[Dict]:
+        """Получить детали категории номера"""
+        try:
+            with self.db.get_cursor('central') as cursor:
+                cursor.execute("SELECT * FROM categories_room WHERE id = %s", (room_category_id,))
+                room_category = cursor.fetchone()
+                if room_category:
+                    room_category = dict(room_category)
+                    return self._convert_to_serializable(room_category)
+                return None
+        except Exception as e:
+            logger.error(f"Error getting room category details: {e}")
+            return None
+
+    def get_cities_with_hotels_count(self) -> List[Dict]:
+        """Получить список городов с количеством отелей"""
+        try:
+            with self.db.get_cursor('central') as cursor:
+                cursor.execute("""
+                    SELECT DISTINCT c.city_name, COUNT(h.id) as hotels_count
+                    FROM cities c
+                    LEFT JOIN hotels h ON c.id = h.city_id
+                    GROUP BY c.id, c.city_name
+                    ORDER BY c.city_name
+                """)
+
+                cities = cursor.fetchall()
+                cities_list = []
+                for city in cities:
+                    city_dict = {
+                        'city_name': city['city_name'],
+                        'hotels_count': city['hotels_count']
+                    }
+                    cities_list.append(city_dict)
+
+                return cities_list
+        except Exception as e:
+            logger.error(f"Error getting cities with hotels count: {e}")
+            return []
