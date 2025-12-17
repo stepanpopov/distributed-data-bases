@@ -5,7 +5,6 @@ x-postgres-common: &postgres-common
     POSTGRES_DB: hotel_management
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: password
-    POSTGRES_HOST_AUTH_METHOD: trust
   command: >
     postgres 
     -c wal_level=logical
@@ -13,7 +12,6 @@ x-postgres-common: &postgres-common
     -c max_replication_slots=40
     -c max_logical_replication_workers=24
     -c max_worker_processes=40
-    -c listen_addresses='*'
   networks:
     - hotel_network
   restart: unless-stopped
@@ -23,9 +21,6 @@ x-filial-common: &filial-common
   <<: *postgres-common
   depends_on:
     - postgres-central
-  volumes:
-    - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
 
 services:
   # Центральный узел (головной офис)
@@ -40,6 +35,9 @@ services:
       - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill.sql
       - ./init/central_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      hotel_network:
+        ipv4_address: 172.20.0.10
 
   # Филиал 1 (Отель в Москве)
   postgres-filial1:
@@ -52,6 +50,9 @@ services:
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      hotel_network:
+        ipv4_address: 172.20.0.11
 
   # Филиал 2 (Отель в СПб)
   postgres-filial2:
@@ -64,6 +65,9 @@ services:
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      hotel_network:
+        ipv4_address: 172.20.0.12
 
   # Филиал 3 (Отель в Казани)
   postgres-filial3:
@@ -76,10 +80,17 @@ services:
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      hotel_network:
+        ipv4_address: 172.20.0.13
 
 networks:
   hotel_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
 
 volumes:
   central_data:
