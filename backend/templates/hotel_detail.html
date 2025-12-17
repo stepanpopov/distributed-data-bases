@@ -39,9 +39,10 @@
                         <p class="card-text">
                             <strong>Вместимость:</strong> {{ room.guests_capacity }} гостей<br>
                             <strong>Цена за ночь:</strong> {{ room.price_per_night }} руб.<br>
+                            <strong>Номеров в отеле:</strong> {{ room.room_count }}<br>
                             <strong>Описание:</strong> {{ room.description }}
                         </p>
-                        <button class="btn btn-primary btn-sm" onclick="checkAvailability({{ hotel.id }}, {{ room.categories_room_id }})">
+                        <button class="btn btn-primary btn-sm" onclick="checkAvailability('{{ hotel.id }}', '{{ room.categories_room_id }}')">
                             Проверить доступность
                         </button>
                         <a href="/hotels/{{ hotel.id }}/book?room_category_id={{ room.categories_room_id }}"
@@ -106,7 +107,7 @@
     document.getElementById('endDate').min = today;
 
     async function checkAvailabilityForm() {
-        const hotelId = {{ hotel.id }};
+        const hotelId = parseInt('{{ hotel.id }}');
         const roomCategoryId = document.getElementById('roomCategory').value;
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
@@ -115,6 +116,11 @@
     }
 
     async function checkAvailability(hotelId, roomCategoryId, startDate = null, endDate = null) {
+        // Если hotelId не передан, получаем из data-атрибута или шаблона
+        if (!hotelId) {
+            hotelId = parseInt('{{ hotel.id }}');
+        }
+
         if (!startDate || !endDate) {
             startDate = document.getElementById('startDate')?.value;
             endDate = document.getElementById('endDate')?.value;

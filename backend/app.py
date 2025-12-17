@@ -45,8 +45,40 @@ def hotel_detail(hotel_id):
     if not hotel:
         return render_template('404.html'), 404
 
-    # Получаем доступные категории номеров
-    rooms = hotel_service.get_hotel_rooms(hotel_id)
+    # Получаем уникальные категории номеров без дубликатов
+    try:
+        with db_manager.get_cursor('central') as cursor:
+            cursor.execute("""
+                SELECT DISTINCT cr.id as categories_room_id, cr.category_name, cr.guests_capacity,
+                       cr.price_per_night, cr.description,
+                       h.location_coeff_room,
+                       COUNT(r.id) as total_rooms_count
+                FROM categories_room cr
+                JOIN hotels h ON h.id = %s
+                LEFT JOIN rooms r ON r.categories_room_id = cr.id AND r.hotel_id = %s
+                GROUP BY cr.id, cr.category_name, cr.guests_capacity, 
+                         cr.price_per_night, cr.description, h.location_coeff_room
+                HAVING COUNT(r.id) > 0
+                ORDER BY cr.price_per_night
+            """, (hotel_id, hotel_id))
+
+            rooms_data = cursor.fetchall()
+            
+            # Конвертируем в нужный формат с ценой, включающей коэффициент
+            rooms = []
+            for room in rooms_data:
+                room_dict = dict(room)
+                location_coeff = float(room['location_coeff_room'] or 1.0)
+                price_per_night = float(room['price_per_night'])
+                
+                room_dict['price_per_night'] = round(price_per_night * location_coeff, 2)
+                room_dict['room_count'] = room['total_rooms_count']
+                rooms.append(room_dict)
+
+    except Exception as e:
+        logger.error(f"Error getting room categories: {e}")
+        rooms = []
+
     amenities = hotel_service.get_hotel_amenities(hotel_id)
 
     return render_template('hotel_detail.html',
@@ -198,13 +230,27 @@ def process_payment_html():
             'method': method
         }
 
+        # Обрабатываем оплату
         result = payment_service.process_payment(payment_data)
-
+        
+        # Детальное логирование для отладки
+        logger.info(f"Payment result for reservation {reservation_id}: {result}")
+        
+        # Проверяем результат ПЕРЕД показом сообщений
         if 'error' in result:
+            logger.warning(f"Payment error for reservation {reservation_id}: {result['error']}")
             flash(f'Ошибка при оплате: {result["error"]}', 'error')
             return redirect(url_for('payment_form', reservation_id=reservation_id))
+        
+        # Проверяем, что операция действительно успешна
+        if not result.get('success'):
+            logger.warning(f"Payment failed for reservation {reservation_id}: no success flag")
+            flash('Произошла ошибка при обработке платежа', 'error')
+            return redirect(url_for('payment_form', reservation_id=reservation_id))
 
-        flash('Оплата прошла успешно!', 'success')
+        # Только если всё успешно, показываем сообщение об успехе
+        logger.info(f"Payment successful for reservation {reservation_id}")
+        flash(f'Оплата прошла успешно! Сумма: {result.get("amount_paid", amount_float)} руб.', 'success')
         return redirect(url_for('index'))
 
     except ValueError as e:
@@ -379,6 +425,60 @@ def check_availability_api():
         return jsonify(result), result.get('status', 400)
 
     return jsonify(result)
+
+@app.route('/hotels/<int:hotel_id>/rooms', methods=['GET'])
+def get_hotel_rooms(hotel_id):
+    """Получить доступные категории номеров в отеле"""
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        if start_date and end_date:
+            # Если есть даты, проверяем доступность категорий без дубликатов
+            categories = availability_service.get_available_room_categories(
+                hotel_id, start_date, end_date
+            )
+        else:
+            # Если дат нет, показываем все категории номеров отеля без дубликатов
+            with db_manager.get_cursor('central') as cursor:
+                cursor.execute("""
+                    SELECT DISTINCT cr.id, cr.category_name, cr.guests_capacity,
+                           cr.price_per_night, cr.description,
+                           h.location_coeff_room,
+                           COUNT(r.id) as total_rooms_count
+                    FROM categories_room cr
+                    JOIN hotels h ON h.id = %s
+                    LEFT JOIN rooms r ON r.categories_room_id = cr.id AND r.hotel_id = %s
+                    GROUP BY cr.id, cr.category_name, cr.guests_capacity, 
+                             cr.price_per_night, cr.description, h.location_coeff_room
+                    HAVING COUNT(r.id) > 0
+                    ORDER BY cr.price_per_night
+                """, (hotel_id, hotel_id))
+
+                categories = cursor.fetchall()
+                
+                # Конвертируем в нужный формат
+                result = []
+                for category in categories:
+                    category_dict = dict(category)
+                    
+                    # Добавляем цену с коэффициентом
+                    location_coeff = float(category['location_coeff_room'] or 1.0)
+                    price_per_night = float(category['price_per_night'])
+                    
+                    category_dict['price_per_night_with_coeff'] = round(
+                        price_per_night * location_coeff, 2
+                    )
+                    category_dict['available_rooms_count'] = category['total_rooms_count']
+                    
+                    result.append(category_dict)
+                
+                categories = result
+
+        return jsonify(categories)
+    except Exception as e:
+        logger.error(f"Error getting hotel rooms: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ПУНКТЫ ==========
 

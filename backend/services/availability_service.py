@@ -142,11 +142,11 @@ class AvailabilityService:
             else:
                 db_name = 'central'
 
+            # Сначала получаем доступные номера по категориям из филиальной БД
             with self.db.get_cursor(db_name) as cursor:
                 cursor.execute("""
-                    SELECT DISTINCT cr.*, COUNT(r.id) as available_rooms_count
-                    FROM categories_room cr
-                    JOIN rooms r ON r.categories_room_id = cr.id
+                    SELECT r.categories_room_id, COUNT(DISTINCT r.id) as available_rooms_count
+                    FROM rooms r
                     WHERE r.hotel_id = %s
                     AND NOT EXISTS (
                         SELECT 1
@@ -158,21 +158,32 @@ class AvailabilityService:
                             (res.start_date <= %s AND res.end_date >= %s)
                         )
                     )
-                    GROUP BY cr.id
-                    HAVING COUNT(r.id) > 0
-                    ORDER BY cr.price_per_night
+                    GROUP BY r.categories_room_id
+                    HAVING COUNT(DISTINCT r.id) > 0
                 """, (hotel_id, end_date, start_date))
 
-                categories = cursor.fetchall()
+                available_categories = cursor.fetchall()
 
-            # Получаем коэффициент местоположения из центральной БД (справочник - РОК)
+            if not available_categories:
+                return []
+
+            # Получаем информацию о категориях из центральной БД (справочник - РОК)
+            category_ids = [cat['categories_room_id'] for cat in available_categories]
+            available_counts = {cat['categories_room_id']: cat['available_rooms_count'] for cat in available_categories}
+
             with self.db.get_cursor('central') as cursor:
+                # Получаем информацию о категориях и коэффициент местоположения
                 cursor.execute("""
-                    SELECT location_coeff_room FROM hotels WHERE id = %s
-                """, (hotel_id,))
+                    SELECT cr.id, cr.category_name, cr.guests_capacity, 
+                           cr.price_per_night, cr.description,
+                           h.location_coeff_room
+                    FROM categories_room cr
+                    JOIN hotels h ON h.id = %s
+                    WHERE cr.id = ANY(%s)
+                    ORDER BY cr.price_per_night
+                """, (hotel_id, category_ids))
 
-                hotel_info = cursor.fetchone()
-                location_coeff = hotel_info['location_coeff_room'] if hotel_info else 1.0
+                categories = cursor.fetchall()
 
                 # Добавляем расчет цены за период
                 nights = (end - start).days
@@ -180,13 +191,19 @@ class AvailabilityService:
 
                 for category in categories:
                     category_dict = dict(category)
-
+                    
+                    # Добавляем количество доступных номеров
+                    category_dict['available_rooms_count'] = available_counts.get(category['id'], 0)
+                    
                     # Рассчитываем цены
+                    location_coeff = float(category['location_coeff_room'] or 1.0)
+                    price_per_night = float(category['price_per_night'])
+                    
                     category_dict['price_for_period'] = round(
-                        category['price_per_night'] * location_coeff * nights, 2
+                        price_per_night * location_coeff * nights, 2
                     )
                     category_dict['price_per_night_with_coeff'] = round(
-                        category['price_per_night'] * location_coeff, 2
+                        price_per_night * location_coeff, 2
                     )
 
                     # Конвертируем
