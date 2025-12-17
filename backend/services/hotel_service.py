@@ -18,17 +18,12 @@ class HotelService:
         elif isinstance(obj, list):
             return [self._convert_to_serializable(item) for item in obj]
         elif isinstance(obj, (datetime, time)):
-            # Для времени возвращаем строку в формате HH:MM
-            if isinstance(obj, time):
-                return obj.strftime('%H:%M')
-            # Для datetime возвращаем строку
-            return obj.isoformat()
+            return obj.strftime('%H:%M') if isinstance(obj, time) else obj.isoformat()
         elif isinstance(obj, Decimal):
             return float(obj)
         elif isinstance(obj, bytes):
             return obj.decode('utf-8')
         elif hasattr(obj, '__dict__'):
-            # Для объектов Row из psycopg2
             return self._convert_to_serializable(dict(obj))
         return obj
 
@@ -61,7 +56,6 @@ class HotelService:
                     """)
 
                 hotels = cursor.fetchall()
-                # Преобразуем Row объекты в словари и конвертируем
                 result = []
                 for hotel in hotels:
                     hotel_dict = dict(hotel)
@@ -79,7 +73,7 @@ class HotelService:
         try:
             with self.db.get_cursor('central') as cursor:
                 cursor.execute("""
-                    SELECT h.*, c.city_name, ch.star_rating, ch.rating_coeff
+                    SELECT h.*, c.city_name, ch.star_rating
                     FROM hotels h
                     JOIN cities c ON h.city_id = c.id
                     JOIN categories_hotel ch ON h.star_rating_id = ch.id
@@ -95,6 +89,95 @@ class HotelService:
         except Exception as e:
             logger.error(f"Error getting hotel details: {e}")
             return None
+
+    def get_hotel_room_categories(self, hotel_id: int) -> List[Dict]:
+        """Получить уникальные категории номеров, которые есть в отеле"""
+        try:
+            with self.db.get_cursor('central') as cursor:
+                # Получаем ВСЕ категории номеров из справочника
+                cursor.execute("""
+                    SELECT cr.id, cr.category_name, cr.guests_capacity,
+                           cr.price_per_night, cr.description
+                    FROM categories_room cr
+                    ORDER BY cr.price_per_night
+                """)
+
+                all_categories = cursor.fetchall()
+
+                # Получаем категории, которые действительно есть в этом отеле
+                cursor.execute("""
+                    SELECT DISTINCT cr.id
+                    FROM categories_room cr
+                    JOIN rooms r ON r.categories_room_id = cr.id
+                    WHERE r.hotel_id = %s
+                """, (hotel_id,))
+
+                existing_category_ids = {row['id'] for row in cursor.fetchall()}
+
+                # Фильтруем категории, оставляем только те, что есть в отеле
+                result = []
+                for category in all_categories:
+                    if category['id'] in existing_category_ids:
+                        category_dict = dict(category)
+                        category_dict = self._convert_to_serializable(category_dict)
+                        result.append(category_dict)
+
+                return result
+
+        except Exception as e:
+            logger.error(f"Error getting hotel room categories: {e}")
+            return []
+
+    def get_hotel_rooms(self, hotel_id: int) -> List[Dict]:
+        """Получить все конкретные номера отеля"""
+        try:
+            with self.db.get_cursor('central') as cursor:
+                cursor.execute("""
+                    SELECT r.*, cr.category_name, cr.guests_capacity,
+                           cr.price_per_night, cr.description as category_description
+                    FROM rooms r
+                    JOIN categories_room cr ON r.categories_room_id = cr.id
+                    WHERE r.hotel_id = %s
+                    ORDER BY r.room_number
+                """, (hotel_id,))
+
+                rooms = cursor.fetchall()
+                result = []
+                for room in rooms:
+                    room_dict = dict(room)
+                    room_dict = self._convert_to_serializable(room_dict)
+                    result.append(room_dict)
+
+                return result
+
+        except Exception as e:
+            logger.error(f"Error getting hotel rooms: {e}")
+            return []
+
+    def get_hotel_amenities(self, hotel_id: int) -> List[Dict]:
+        """Получить удобства отеля"""
+        try:
+            with self.db.get_cursor('central') as cursor:
+                cursor.execute("""
+                    SELECT a.*, ta.name as amenity_name
+                    FROM amenities a
+                    JOIN types_amenities ta ON a.types_amenities_id = ta.id
+                    WHERE a.hotel_id = %s
+                    ORDER BY ta.name
+                """, (hotel_id,))
+
+                amenities = cursor.fetchall()
+                result = []
+                for amenity in amenities:
+                    amenity_dict = dict(amenity)
+                    amenity_dict = self._convert_to_serializable(amenity_dict)
+                    result.append(amenity_dict)
+
+                return result
+
+        except Exception as e:
+            logger.error(f"Error getting hotel amenities: {e}")
+            return []
 
     def update_hotel(self, hotel_id: int, hotel_data: Dict[str, Any]) -> Dict[str, Any]:
         """Обновить информацию об отеле"""
@@ -127,56 +210,3 @@ class HotelService:
         except Exception as e:
             logger.error(f"Error updating hotel: {e}")
             return {'error': str(e), 'status': 500}
-
-    def get_hotel_rooms(self, hotel_id: int) -> List[Dict]:
-        """Получить все номера отеля"""
-        try:
-            with self.db.get_cursor('central') as cursor:
-                cursor.execute("""
-                    SELECT r.*, cr.category_name, cr.guests_capacity,
-                           cr.price_per_night, cr.description as room_description
-                    FROM rooms r
-                    JOIN categories_room cr ON r.categories_room_id = cr.id
-                    WHERE r.hotel_id = %s
-                    ORDER BY r.room_number
-                """, (hotel_id,))
-
-                rooms = cursor.fetchall()
-                # Преобразуем в сериализуемый формат
-                result = []
-                for room in rooms:
-                    room_dict = dict(room)
-                    room_dict = self._convert_to_serializable(room_dict)
-                    result.append(room_dict)
-
-                return result
-
-        except Exception as e:
-            logger.error(f"Error getting hotel rooms: {e}")
-            return []
-
-    def get_hotel_amenities(self, hotel_id: int) -> List[Dict]:
-        """Получить удобства отеля"""
-        try:
-            with self.db.get_cursor('central') as cursor:
-                cursor.execute("""
-                    SELECT a.*, ta.name as amenity_name
-                    FROM amenities a
-                    JOIN types_amenities ta ON a.types_amenities_id = ta.id
-                    WHERE a.hotel_id = %s
-                    ORDER BY ta.name
-                """, (hotel_id,))
-
-                amenities = cursor.fetchall()
-                # Преобразуем в сериализуемый формат
-                result = []
-                for amenity in amenities:
-                    amenity_dict = dict(amenity)
-                    amenity_dict = self._convert_to_serializable(amenity_dict)
-                    result.append(amenity_dict)
-
-                return result
-
-        except Exception as e:
-            logger.error(f"Error getting hotel amenities: {e}")
-            return []

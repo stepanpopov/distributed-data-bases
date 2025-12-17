@@ -19,56 +19,97 @@
         <h3>Удобства</h3>
         <div class="mb-4">
             {% if amenities %}
-                <ul>
-                {% for amenity in amenities %}
-                    <li>{{ amenity.amenity_name }} - {{ amenity.price }} руб.</li>
-                {% endfor %}
-                </ul>
+                <div class="row">
+                    {% for amenity in amenities %}
+                    <div class="col-md-6 mb-2">
+                        <div class="card">
+                            <div class="card-body py-2">
+                                <strong>{{ amenity.amenity_name }}</strong>
+                                {% if amenity.price > 0 %}
+                                <span class="float-end">{{ amenity.price }} руб.</span>
+                                {% else %}
+                                <span class="float-end text-success">Бесплатно</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             {% else %}
                 <p>Информация об удобствах отсутствует</p>
             {% endif %}
         </div>
 
         <h3>Категории номеров</h3>
-        <div class="row">
-            {% for room in rooms %}
-            <div class="col-md-6 mb-3">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">{{ room.category_name }}</h5>
-                        <p class="card-text">
-                            <strong>Вместимость:</strong> {{ room.guests_capacity }} гостей<br>
-                            <strong>Цена за ночь:</strong> {{ room.price_per_night }} руб.<br>
-                            <strong>Описание:</strong> {{ room.description }}
-                        </p>
-                        <button class="btn btn-primary btn-sm" onclick="checkAvailability({{ hotel.id }}, {{ room.categories_room_id }})">
-                            Проверить доступность
-                        </button>
-                        <a href="/hotels/{{ hotel.id }}/book?room_category_id={{ room.categories_room_id }}"
-                           class="btn btn-success btn-sm">
-                            Забронировать
-                        </a>
+        <div id="roomCategoriesContainer">
+            {% if room_categories %}
+            <div class="row" id="roomCategoriesList">
+                {% for category in room_categories %}
+                <div class="col-md-6 mb-4 category-card" data-category-id="{{ category.id }}">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ category.category_name }}</h5>
+                            <p class="card-text">
+                                <strong>Вместимость:</strong> {{ category.guests_capacity }} гостей<br>
+                                <strong>Цена за ночь:</strong> {{ category.price_per_night }} руб.<br>
+                                <strong>Описание:</strong> {{ category.description }}
+                            </p>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-primary btn-sm"
+                                        onclick="checkCategoryAvailability({{ hotel.id }}, {{ category.id }})">
+                                    Проверить доступность
+                                </button>
+                                <a href="/hotels/{{ hotel.id }}/book?room_category_id={{ category.id }}"
+                                   class="btn btn-success btn-sm">
+                                    Забронировать
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
             {% else %}
-            <div class="col-12">
-                <div class="alert alert-info">Номера не найдены</div>
-            </div>
-            {% endfor %}
+            <div class="alert alert-info" id="noRoomsMessage">Номера не найдены</div>
+            {% endif %}
         </div>
     </div>
 
     <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Фильтр по датам</h5>
+                <form id="availabilityFilterForm">
+                    <div class="mb-3">
+                        <label for="filterStartDate" class="form-label">Дата заезда</label>
+                        <input type="date" id="filterStartDate" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="filterEndDate" class="form-label">Дата выезда</label>
+                        <input type="date" id="filterEndDate" class="form-control" required>
+                    </div>
+                    <button type="button" class="btn btn-primary w-100" onclick="filterRoomsByDate()">
+                        Показать доступные
+                    </button>
+                    <button type="button" class="btn btn-secondary w-100 mt-2" onclick="resetRoomFilter()">
+                        Сбросить фильтр
+                    </button>
+                </form>
+                <div class="mt-3 text-muted small">
+                    <p>Используйте фильтр, чтобы увидеть только доступные на выбранные даты категории номеров.</p>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Проверить доступность</h5>
+                <h5 class="card-title">Проверить конкретную категорию</h5>
                 <form id="availabilityForm">
                     <div class="mb-3">
                         <label for="roomCategory" class="form-label">Категория номера</label>
                         <select id="roomCategory" class="form-select">
-                            {% for room in rooms %}
-                            <option value="{{ room.categories_room_id }}">{{ room.category_name }}</option>
+                            {% for category in room_categories %}
+                            <option value="{{ category.id }}">{{ category.category_name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -80,7 +121,7 @@
                         <label for="endDate" class="form-label">Дата выезда</label>
                         <input type="date" id="endDate" class="form-control" required>
                     </div>
-                    <button type="button" class="btn btn-primary w-100" onclick="checkAvailabilityForm()">
+                    <button type="button" class="btn btn-primary w-100" onclick="checkSpecificAvailability()">
                         Проверить
                     </button>
                 </form>
@@ -104,43 +145,108 @@
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('startDate').min = today;
     document.getElementById('endDate').min = today;
+    document.getElementById('filterStartDate').min = today;
+    document.getElementById('filterEndDate').min = today;
 
-    async function checkAvailabilityForm() {
+    async function filterRoomsByDate() {
+        const hotelId = {{ hotel.id }};
+        const startDate = document.getElementById('filterStartDate').value;
+        const endDate = document.getElementById('filterEndDate').value;
+
+        if (!startDate || !endDate) {
+            alert('Пожалуйста, выберите даты');
+            return;
+        }
+
+        const url = `/api/hotels/${hotelId}/rooms?start_date=${startDate}&end_date=${endDate}`;
+        const response = await fetch(url);
+        const categories = await response.json();
+
+        const container = document.getElementById('roomCategoriesList');
+        const noRoomsMessage = document.getElementById('noRoomsMessage');
+
+        if (categories.length === 0) {
+            if (!noRoomsMessage) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'alert alert-info';
+                msgDiv.id = 'noRoomsMessage';
+                msgDiv.textContent = 'На выбранные даты нет доступных номеров';
+                document.getElementById('roomCategoriesContainer').appendChild(msgDiv);
+            } else {
+                noRoomsMessage.textContent = 'На выбранные даты нет доступных номеров';
+                noRoomsMessage.style.display = 'block';
+            }
+            container.style.display = 'none';
+        } else {
+            if (noRoomsMessage) {
+                noRoomsMessage.style.display = 'none';
+            }
+
+            // Показываем все карточки, но скрываем те, которых нет в фильтрованных результатах
+            const categoryCards = document.querySelectorAll('.category-card');
+            const availableCategoryIds = new Set(categories.map(cat => cat.category_id || cat.id));
+
+            categoryCards.forEach(card => {
+                const categoryId = card.getAttribute('data-category-id');
+                if (availableCategoryIds.has(parseInt(categoryId))) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            container.style.display = 'flex';
+        }
+    }
+
+    function resetRoomFilter() {
+        document.getElementById('filterStartDate').value = '';
+        document.getElementById('filterEndDate').value = '';
+
+        const categoryCards = document.querySelectorAll('.category-card');
+        categoryCards.forEach(card => {
+            card.style.display = 'block';
+        });
+
+        const noRoomsMessage = document.getElementById('noRoomsMessage');
+        if (noRoomsMessage) {
+            noRoomsMessage.style.display = 'none';
+        }
+
+        const container = document.getElementById('roomCategoriesList');
+        if (container) {
+            container.style.display = 'flex';
+        }
+    }
+
+    async function checkSpecificAvailability() {
         const hotelId = {{ hotel.id }};
         const roomCategoryId = document.getElementById('roomCategory').value;
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
 
-        await checkAvailability(hotelId, roomCategoryId, startDate, endDate);
-    }
-
-    async function checkAvailability(hotelId, roomCategoryId, startDate = null, endDate = null) {
         if (!startDate || !endDate) {
-            startDate = document.getElementById('startDate')?.value;
-            endDate = document.getElementById('endDate')?.value;
-
-            if (!startDate || !endDate) {
-                alert('Пожалуйста, выберите даты');
-                return;
-            }
+            alert('Пожалуйста, выберите даты');
+            return;
         }
 
         const url = `/api/check-availability?hotel_id=${hotelId}&room_category_id=${roomCategoryId}&start_date=${startDate}&end_date=${endDate}`;
-        const result = await fetchData(url);
+        const result = await fetch(url);
+        const data = await result.json();
 
         const resultDiv = document.getElementById('availabilityResult');
         const message = document.getElementById('availabilityMessage');
         const price = document.getElementById('availabilityPrice');
         const bookBtn = document.getElementById('bookButton');
 
-        if (result.error) {
-            message.textContent = `Ошибка: ${result.error}`;
+        if (data.error) {
+            message.textContent = `Ошибка: ${data.error}`;
             price.textContent = '';
             bookBtn.style.display = 'none';
         } else {
-            if (result.available) {
-                message.textContent = `Доступно! ${result.available_rooms_count} номеров`;
-                price.textContent = `Стоимость: ${result.total_price} руб. за ${result.nights} ночей`;
+            if (data.available) {
+                message.textContent = `Доступно! ${data.available_rooms_count} номеров`;
+                price.textContent = `Стоимость: ${data.total_price} руб. за ${data.nights} ночей`;
                 bookBtn.href = `/hotels/${hotelId}/book?room_category_id=${roomCategoryId}&start_date=${startDate}&end_date=${endDate}`;
                 bookBtn.style.display = 'inline-block';
             } else {
@@ -151,6 +257,23 @@
         }
 
         resultDiv.style.display = 'block';
+    }
+
+    async function checkCategoryAvailability(hotelId, categoryId) {
+        // Заполняем форму и проверяем доступность
+        document.getElementById('roomCategory').value = categoryId;
+
+        // Если уже есть выбранные даты в фильтре, используем их
+        const filterStartDate = document.getElementById('filterStartDate').value;
+        const filterEndDate = document.getElementById('filterEndDate').value;
+
+        if (filterStartDate && filterEndDate) {
+            document.getElementById('startDate').value = filterStartDate;
+            document.getElementById('endDate').value = filterEndDate;
+            await checkSpecificAvailability();
+        } else {
+            alert('Сначала выберите даты в форме справа');
+        }
     }
 </script>
 {% endblock %}

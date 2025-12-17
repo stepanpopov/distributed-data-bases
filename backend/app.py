@@ -1,128 +1,3 @@
-# from flask import Flask, request, jsonify
-# from flask_cors import CORS
-# from database import db_manager
-# import logging
-# from datetime import datetime
-# from json_encoder import CustomJSONEncoder
-
-# # Импорт сервисов
-# from services.booking_service import BookingService
-# from services.payment_service import PaymentService
-# from services.availability_service import AvailabilityService
-# from services.hotel_service import HotelService
-
-# app = Flask(__name__)
-# CORS(app)
-
-# app.json_encoder = CustomJSONEncoder
-
-# # Настройка логирования
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
-
-# # Инициализация сервисов
-# booking_service = BookingService(db_manager)
-# payment_service = PaymentService(db_manager)
-# availability_service = AvailabilityService(db_manager)
-# hotel_service = HotelService(db_manager)
-
-# @app.route('/api/health', methods=['GET'])
-# def health_check():
-#     """Проверка работоспособности API"""
-#     try:
-#         # Простая проверка
-#         return jsonify({
-#             'status': 'healthy',
-#             'message': 'API is running',
-#             'timestamp': datetime.now().isoformat()  # Теперь datetime определен
-#         }), 200
-#     except Exception as e:
-#         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
-
-# @app.route('/api/hotels', methods=['GET'])
-# def get_hotels():
-#     """Получить список отелей"""
-#     try:
-#         city = request.args.get('city')
-#         hotels = hotel_service.get_all_hotels(city)
-#         return jsonify(hotels)
-#     except Exception as e:
-#         logger.error(f"Error getting hotels: {e}")
-#         return jsonify({'error': str(e)}), 500
-
-# @app.route('/api/hotels/<int:hotel_id>', methods=['GET'])
-# def get_hotel(hotel_id):
-#     """Получить информацию об отеле"""
-#     try:
-#         hotel = hotel_service.get_hotel_details(hotel_id)
-#         if hotel:
-#             return jsonify(hotel)
-#         return jsonify({'error': 'Hotel not found'}), 404
-#     except Exception as e:
-#         logger.error(f"Error getting hotel: {e}")
-#         return jsonify({'error': str(e)}), 500
-
-# @app.route('/api/test', methods=['GET'])
-# def test_endpoint():
-#     """Тестовый эндпоинт"""
-#     return jsonify({
-#         'message': 'API is working!',
-#         'timestamp': datetime.now().isoformat(),  # И здесь тоже
-#         'endpoints': [
-#             '/api/health',
-#             '/api/hotels',
-#             '/api/test',
-#             '/api/hotels/<id>'
-#         ]
-#     })
-
-# @app.route('/api/hotels/<int:hotel_id>/rooms', methods=['GET'])
-# def get_hotel_rooms(hotel_id):
-#     """Получить доступные категории номеров в отеле"""
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-
-#         if start_date and end_date:
-#             # Если есть даты, проверяем доступность
-#             categories = availability_service.get_available_room_categories(
-#                 hotel_id, start_date, end_date
-#             )
-#         else:
-#             # Иначе просто список всех категорий номеров отеля
-#             categories = hotel_service.get_hotel_rooms(hotel_id)
-
-#         return jsonify(categories)
-#     except Exception as e:
-#         logger.error(f"Error getting hotel rooms: {e}")
-#         return jsonify({'error': str(e)}), 500
-
-# @app.route('/api/check-availability', methods=['GET'])
-# def check_availability():
-#     """Проверить доступность номера"""
-#     try:
-#         hotel_id = request.args.get('hotel_id')
-#         room_category_id = request.args.get('room_category_id')
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-
-#         if not all([hotel_id, room_category_id, start_date, end_date]):
-#             return jsonify({'error': 'Missing required parameters'}), 400
-
-#         result = availability_service.check_room_availability(
-#             int(hotel_id), int(room_category_id), start_date, end_date
-#         )
-
-#         if 'error' in result:
-#             return jsonify(result), result.get('status', 400)
-
-#         return jsonify(result)
-#     except Exception as e:
-#         logger.error(f"Error checking availability: {e}")
-#         return jsonify({'error': str(e)}), 500
-
-# if __name__ == '__main__':
-#     app.run(host='0.0.0.0', port=5000, debug=True)
 from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
 from flask_cors import CORS
 from database import db_manager
@@ -170,14 +45,29 @@ def hotel_detail(hotel_id):
     if not hotel:
         return render_template('404.html'), 404
 
-    # Получаем доступные категории номеров
-    rooms = hotel_service.get_hotel_rooms(hotel_id)
+    # Получаем уникальные категории номеров, которые есть в отеле
+    room_categories = hotel_service.get_hotel_room_categories(hotel_id)
     amenities = hotel_service.get_hotel_amenities(hotel_id)
 
     return render_template('hotel_detail.html',
                          hotel=hotel,
-                         rooms=rooms,
+                         room_categories=room_categories,
                          amenities=amenities)
+
+@app.route('/api/hotels/<int:hotel_id>/rooms', methods=['GET'])
+def get_hotel_rooms_api(hotel_id):
+    """Получить доступные категории номеров в отеле (API для фильтрации)"""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    if start_date and end_date:
+        # Если есть даты, проверяем доступность
+        categories = availability_service.get_available_room_categories(hotel_id, start_date, end_date)
+    else:
+        # Иначе просто список всех категорий номеров отеля
+        categories = hotel_service.get_hotel_room_categories(hotel_id)
+
+    return jsonify(categories)
 
 @app.route('/hotels/<int:hotel_id>/book')
 def booking_form(hotel_id):

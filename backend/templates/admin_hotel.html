@@ -3,11 +3,31 @@
 {% block title %}Админка - {{ hotel.name }}{% endblock %}
 
 {% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>Админка отеля</h1>
+            <div class="btn-group">
+                <!-- Кнопки для переключения между отелями -->
+                <a href="/admin/hotels/1" class="btn btn-outline-primary {% if hotel.id == 1 %}active{% endif %}">
+                    Москва
+                </a>
+                <a href="/admin/hotels/2" class="btn btn-outline-primary {% if hotel.id == 2 %}active{% endif %}">
+                    СПб
+                </a>
+                <a href="/admin/hotels/3" class="btn btn-outline-primary {% if hotel.id == 3 %}active{% endif %}">
+                    Казань
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-md-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Редактирование отеля</h5>
+                <h5 class="mb-0">Редактирование отеля: {{ hotel.name }}</h5>
             </div>
             <div class="card-body">
                 <form method="POST" action="/admin/hotels/{{ hotel.id }}/update">
@@ -68,6 +88,26 @@
                         </div>
                     </div>
 
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="star_rating" class="form-label">Категория (звезды)</label>
+                                <select class="form-select" id="star_rating" name="star_rating_id">
+                                    <option value="1" {% if hotel.star_rating_id == 1 %}selected{% endif %}>3 звезды</option>
+                                    <option value="2" {% if hotel.star_rating_id == 2 %}selected{% endif %}>4 звезды</option>
+                                    <option value="3" {% if hotel.star_rating_id == 3 %}selected{% endif %}>5 звезд</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="location_coeff_room" class="form-label">Коэффициент местоположения</label>
+                                <input type="number" step="0.01" class="form-control" id="location_coeff_room"
+                                       name="location_coeff_room" value="{{ hotel.location_coeff_room }}">
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label for="description" class="form-label">Описание</label>
                         <textarea class="form-control" id="description" name="description" rows="3">{{ hotel.description }}</textarea>
@@ -83,28 +123,46 @@
     </div>
 
     <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Быстрое меню</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    <a href="/reception/{{ hotel.id }}" class="list-group-item list-group-item-action">
+                        📋 Перейти к ресепшену
+                    </a>
+                    <a href="/hotels" class="list-group-item list-group-item-action">
+                        🏨 Список всех отелей
+                    </a>
+                    <a href="/" class="list-group-item list-group-item-action">
+                        🏠 На главную
+                    </a>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Статистика</h5>
+                <h5 class="mb-0">Информация об отеле</h5>
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <h6>Бронирования сегодня:</h6>
-                    <p class="fs-4">5</p>
+                    <h6>ID отеля:</h6>
+                    <p>{{ hotel.id }}</p>
                 </div>
                 <div class="mb-3">
-                    <h6>Свободных номеров:</h6>
-                    <p class="fs-4">12/20</p>
+                    <h6>Категория:</h6>
+                    <p>{{ hotel.star_rating }} звезды</p>
                 </div>
                 <div class="mb-3">
-                    <h6>Загрузка отеля:</h6>
-                    <div class="progress">
-                        <div class="progress-bar" style="width: 60%">60%</div>
-                    </div>
+                    <h6>Коэффициент:</h6>
+                    <p>{{ hotel.location_coeff_room }}</p>
                 </div>
-                <a href="/reception/{{ hotel.id }}" class="btn btn-outline-primary w-100">
-                    Перейти к ресепшену
-                </a>
+                <div class="mb-3">
+                    <h6>Email администратора:</h6>
+                    <p>{{ hotel.email }}</p>
+                </div>
             </div>
         </div>
     </div>
