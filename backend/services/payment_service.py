@@ -38,10 +38,11 @@ class PaymentService:
             if not reservation_id or not amount:
                 return {'error': 'Missing required fields', 'status': 400}
 
-            # Получаем информацию о бронировании
+            # Определяем город отеля для выбора БД
+            city_name = None
             with self.db.get_cursor('central') as cursor:
                 cursor.execute("""
-                    SELECT r.*, c.city_name, g.loyalty_card_id, g.bonus_points
+                    SELECT c.city_name, r.*, g.loyalty_card_id, g.bonus_points
                     FROM reservations r
                     JOIN hotels h ON r.hotel_id = h.id
                     JOIN cities c ON h.city_id = c.id
@@ -49,54 +50,76 @@ class PaymentService:
                     WHERE r.id = %s
                 """, (reservation_id,))
 
+                reservation_data = cursor.fetchone()
+                if reservation_data:
+                    city_name = reservation_data['city_name']
+
+            if not city_name:
+                return {'error': 'Reservation not found', 'status': 404}
+
+            # Определяем филиальную БД для работы с операционными данными
+            if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+                db_mapping = {
+                    'Москва': 'filial1',
+                    'Санкт-Петербург': 'filial2',
+                    'Казань': 'filial3'
+                }
+                primary_db = db_mapping[city_name]
+            else:
+                primary_db = 'central'
+
+            # Обрабатываем платеж в филиальной БД (РКД - операционные данные создаются в филиале)
+            with self.db.get_cursor(primary_db) as cursor:
+                # Получаем информацию о бронировании из филиальной БД
+                cursor.execute("""
+                    SELECT r.*, g.loyalty_card_id, g.bonus_points
+                    FROM reservations r
+                    JOIN guests g ON r.payer_id = g.id
+                    WHERE r.id = %s
+                """, (reservation_id,))
+
                 reservation = cursor.fetchone()
 
                 if not reservation:
-                    return {'error': 'Reservation not found', 'status': 404}
+                    return {'error': 'Reservation not found in filial DB', 'status': 404}
 
                 # Проверяем, не оплачено ли уже
                 if reservation['payments_status'] == 'paid':
                     return {'error': 'Reservation already paid', 'status': 400}
 
-                city_name = reservation['city_name']
-
-                # Применяем скидку по карте лояльности если есть
+                # Применяем скидку по карте лояльности если есть (справочники из центральной БД)
                 final_amount = self._apply_loyalty_discount(
                     amount,
                     reservation['loyalty_card_id'],
                     reservation['bonus_points']
                 )
 
-                # Обновляем статус бронирования
+                # Обновляем статус бронирования в филиальной БД
                 cursor.execute("""
                     UPDATE reservations
                     SET payments_status = 'paid', status = 'confirmed', total_price = %s
                     WHERE id = %s
                 """, (final_amount, reservation_id))
 
-                # Создаем запись о платеже
+                # Создаем запись о платеже в филиальной БД
                 cursor.execute("""
                     INSERT INTO payments (reservation_id, payments_sum, payments_date, payments_method)
                     VALUES (%s, %s, CURRENT_DATE, %s)
                 """, (reservation_id, final_amount, payment_method))
 
-                # Начисляем бонусные баллы (1% от суммы)
+                # Начисляем бонусные баллы (обновляем гостя - РБОК)
                 bonus_points = int(final_amount * 0.01)
                 cursor.execute("""
                     UPDATE guests
                     SET bonus_points = bonus_points + %s
-                    FROM reservations
-                    WHERE guests.id = reservations.payer_id AND reservations.id = %s
-                """, (bonus_points, reservation_id))
+                    WHERE id = %s
+                """, (bonus_points, reservation['payer_id']))
 
                 # Проверяем обновление карты лояльности
                 self._update_loyalty_card(reservation['payer_id'])
 
-            # Реплицируем в городскую БД если нужно
-            if city_name in ['Москва', 'Казань']:
-                self._replicate_payment_to_city(reservation_id, final_amount, payment_method, city_name)
-
-            logger.info(f"Payment processed for reservation {reservation_id}: {final_amount}")
+            # Операционные данные автоматически реплицируются в центр через РКД
+            logger.info(f"Payment processed for reservation {reservation_id}: {final_amount} in {primary_db}")
 
             return {
                 'success': True,
@@ -157,8 +180,9 @@ class PaymentService:
 
                 # Проверяем, достаточно ли бонусных баллов
                 if bonus_points >= card['req_bonus_amount']:
-                    discount = card['discount'] / 100  # Проценты в долю
-                    discounted_amount = amount * (1 - discount)
+                    # Исправляем проблему с типами данных - приводим к float
+                    discount = float(card['discount']) / 100  # Проценты в долю
+                    discounted_amount = float(amount) * (1 - discount)
                     return round(discounted_amount, 2)
 
             return amount
@@ -168,7 +192,7 @@ class PaymentService:
             return amount
 
     def _update_loyalty_card(self, guest_id: int) -> None:
-        """Обновить карту лояльности гостя на основе бонусных баллов"""
+        """Обновить карту лояльности гостя на основе бонусных баллов (РОК - справочники из центральной БД)"""
         try:
             with self.db.get_cursor('central') as cursor:
                 # Получаем текущие баллы гостя
@@ -180,7 +204,7 @@ class PaymentService:
 
                 bonus_points = guest['bonus_points']
 
-                # Находим подходящую карту лояльности
+                # Находим подходящую карту лояльности (справочник из центральной БД)
                 cursor.execute("""
                     SELECT id FROM loyalty_cards
                     WHERE req_bonus_amount <= %s
@@ -190,6 +214,7 @@ class PaymentService:
 
                 new_card = cursor.fetchone()
                 if new_card:
+                    # Обновляем гостя (РБОК - синхронизируется между всеми узлами)
                     cursor.execute("""
                         UPDATE guests
                         SET loyalty_card_id = %s
@@ -198,31 +223,3 @@ class PaymentService:
 
         except Exception as e:
             logger.error(f"Error updating loyalty card: {e}")
-
-    def _replicate_payment_to_city(self, reservation_id: int, amount: float,
-                                  method: str, city_name: str) -> bool:
-        """Реплицировать платеж в городскую БД"""
-        if city_name not in ['Москва', 'Казань']:
-            return False
-
-        db_name = 'moscow' if city_name == 'Москва' else 'kazan'
-
-        try:
-            with self.db.get_cursor(db_name) as cursor:
-                cursor.execute("""
-                    UPDATE reservations
-                    SET payments_status = 'paid', status = 'confirmed'
-                    WHERE id = %s
-                """, (reservation_id,))
-
-                cursor.execute("""
-                    INSERT INTO payments (reservation_id, payments_sum, payments_date, payments_method)
-                    VALUES (%s, %s, CURRENT_DATE, %s)
-                """, (reservation_id, amount, method))
-
-            logger.info(f"Payment for reservation {reservation_id} replicated to {db_name}")
-            return True
-
-        except Exception as e:
-            logger.warning(f"Could not replicate payment to {db_name}: {e}")
-            return False

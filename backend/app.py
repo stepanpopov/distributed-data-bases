@@ -453,6 +453,30 @@ def get_available_rooms_api(hotel_id):
 
     return jsonify(rooms)
 
+def _get_db_by_hotel_city(hotel_id):
+    """Вспомогательная функция для определения БД по городу отеля"""
+    try:
+        with db_manager.get_cursor('central') as cursor:
+            cursor.execute("""
+                SELECT c.city_name
+                FROM hotels h
+                JOIN cities c ON h.city_id = c.id
+                WHERE h.id = %s
+            """, (hotel_id,))
+            
+            result = cursor.fetchone()
+            if result:
+                city_name = result['city_name']
+                db_mapping = {
+                    'Москва': 'filial1',
+                    'Санкт-Петербург': 'filial2',
+                    'Казань': 'filial3'
+                }
+                return db_mapping.get(city_name, 'central')
+            return 'central'
+    except Exception:
+        return 'central'
+
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('404.html'), 404

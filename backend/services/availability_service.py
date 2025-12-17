@@ -38,7 +38,21 @@ class AvailabilityService:
             if start >= end:
                 return {'error': 'End date must be after start date', 'status': 400}
 
-            with self.db.get_cursor('central') as cursor:
+            # Определяем город отеля для правильного выбора БД
+            city_name = self._get_city_by_hotel(hotel_id)
+            
+            # Номера и бронирования хранятся в филиальных БД (РКД)
+            if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+                db_mapping = {
+                    'Москва': 'filial1',
+                    'Санкт-Петербург': 'filial2',
+                    'Казань': 'filial3'
+                }
+                db_name = db_mapping.get(city_name, 'central')
+            else:
+                db_name = 'central'
+
+            with self.db.get_cursor(db_name) as cursor:
                 # Находим доступные номера
                 cursor.execute("""
                     SELECT r.id, r.room_number, r.floor, r.view,
@@ -62,7 +76,8 @@ class AvailabilityService:
 
                 available_rooms = cursor.fetchall()
 
-                # Получаем информацию о категории номера
+            # Информация о категории номера берется из центральной БД (справочник - РОК)
+            with self.db.get_cursor('central') as cursor:
                 cursor.execute("""
                     SELECT id, category_name, guests_capacity, price_per_night, description
                     FROM categories_room
@@ -71,7 +86,7 @@ class AvailabilityService:
 
                 room_info = cursor.fetchone()
 
-                # Получаем коэффициент местоположения отеля
+                # Получаем коэффициент местоположения отеля (справочник - РОК)
                 cursor.execute("""
                     SELECT location_coeff_room FROM hotels WHERE id = %s
                 """, (hotel_id,))
@@ -113,7 +128,21 @@ class AvailabilityService:
             if start >= end:
                 return []
 
-            with self.db.get_cursor('central') as cursor:
+            # Определяем город отеля для правильного выбора БД
+            city_name = self._get_city_by_hotel(hotel_id)
+            
+            # Номера и бронирования в филиальных БД (РКД)
+            if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+                db_mapping = {
+                    'Москва': 'filial1',
+                    'Санкт-Петербург': 'filial2',
+                    'Казань': 'filial3'
+                }
+                db_name = db_mapping.get(city_name, 'central')
+            else:
+                db_name = 'central'
+
+            with self.db.get_cursor(db_name) as cursor:
                 cursor.execute("""
                     SELECT DISTINCT cr.*, COUNT(r.id) as available_rooms_count
                     FROM categories_room cr
@@ -136,20 +165,21 @@ class AvailabilityService:
 
                 categories = cursor.fetchall()
 
+            # Получаем коэффициент местоположения из центральной БД (справочник - РОК)
+            with self.db.get_cursor('central') as cursor:
+                cursor.execute("""
+                    SELECT location_coeff_room FROM hotels WHERE id = %s
+                """, (hotel_id,))
+
+                hotel_info = cursor.fetchone()
+                location_coeff = hotel_info['location_coeff_room'] if hotel_info else 1.0
+
                 # Добавляем расчет цены за период
                 nights = (end - start).days
                 result = []
 
                 for category in categories:
                     category_dict = dict(category)
-
-                    # Получаем коэффициент местоположения
-                    cursor.execute("""
-                        SELECT location_coeff_room FROM hotels WHERE id = %s
-                    """, (hotel_id,))
-
-                    hotel_info = cursor.fetchone()
-                    location_coeff = hotel_info['location_coeff_room'] if hotel_info else 1.0
 
                     # Рассчитываем цены
                     category_dict['price_for_period'] = round(
@@ -182,7 +212,21 @@ class AvailabilityService:
             if start >= end:
                 return []
 
-            with self.db.get_cursor('central') as cursor:
+            # Определяем город отеля для правильного выбора БД
+            city_name = self._get_city_by_hotel(hotel_id)
+            
+            # Номера и бронирования в филиальных БД (РКД)
+            if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+                db_mapping = {
+                    'Москва': 'filial1',
+                    'Санкт-Петербург': 'filial2',
+                    'Казань': 'filial3'
+                }
+                db_name = db_mapping.get(city_name, 'central')
+            else:
+                db_name = 'central'
+
+            with self.db.get_cursor(db_name) as cursor:
                 cursor.execute("""
                     SELECT r.*, cr.category_name, cr.guests_capacity, cr.price_per_night
                     FROM rooms r
@@ -216,3 +260,21 @@ class AvailabilityService:
         except Exception as e:
             logger.error(f"Error finding available rooms: {e}")
             return []
+
+    def _get_city_by_hotel(self, hotel_id: int) -> Optional[str]:
+        """Получить название города по ID отеля (из центральной БД - справочник)"""
+        try:
+            with self.db.get_cursor('central') as cursor:
+                cursor.execute("""
+                    SELECT c.city_name
+                    FROM hotels h
+                    JOIN cities c ON h.city_id = c.id
+                    WHERE h.id = %s
+                """, (hotel_id,))
+
+                result = cursor.fetchone()
+                return result['city_name'] if result else None
+
+        except Exception as e:
+            logger.error(f"Error getting city by hotel: {e}")
+            return None

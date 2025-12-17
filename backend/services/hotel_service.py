@@ -131,7 +131,21 @@ class HotelService:
     def get_hotel_rooms(self, hotel_id: int) -> List[Dict]:
         """Получить все номера отеля"""
         try:
-            with self.db.get_cursor('central') as cursor:
+            # Определяем город отеля и соответствующую БД
+            city_name = self._get_city_by_hotel(hotel_id)
+            
+            # Номера хранятся в филиальных БД (РКД), поэтому читаем из соответствующей филиальной БД
+            if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+                db_mapping = {
+                    'Москва': 'filial1',
+                    'Санкт-Петербург': 'filial2',
+                    'Казань': 'filial3'
+                }
+                db_name = db_mapping.get(city_name, 'central')
+            else:
+                db_name = 'central'
+            
+            with self.db.get_cursor(db_name) as cursor:
                 cursor.execute("""
                     SELECT r.*, cr.category_name, cr.guests_capacity,
                            cr.price_per_night, cr.description as room_description
@@ -158,7 +172,21 @@ class HotelService:
     def get_hotel_amenities(self, hotel_id: int) -> List[Dict]:
         """Получить удобства отеля"""
         try:
-            with self.db.get_cursor('central') as cursor:
+            # Определяем город отеля и соответствующую БД
+            city_name = self._get_city_by_hotel(hotel_id)
+            
+            # Удобства хранятся в филиальных БД (РКД)
+            if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+                db_mapping = {
+                    'Москва': 'filial1',
+                    'Санкт-Петербург': 'filial2',
+                    'Казань': 'filial3'
+                }
+                db_name = db_mapping.get(city_name, 'central')
+            else:
+                db_name = 'central'
+            
+            with self.db.get_cursor(db_name) as cursor:
                 cursor.execute("""
                     SELECT a.*, ta.name as amenity_name
                     FROM amenities a
@@ -180,3 +208,21 @@ class HotelService:
         except Exception as e:
             logger.error(f"Error getting hotel amenities: {e}")
             return []
+
+    def _get_city_by_hotel(self, hotel_id: int) -> Optional[str]:
+        """Получить название города по ID отеля"""
+        try:
+            with self.db.get_cursor('central') as cursor:
+                cursor.execute("""
+                    SELECT c.city_name
+                    FROM hotels h
+                    JOIN cities c ON h.city_id = c.id
+                    WHERE h.id = %s
+                """, (hotel_id,))
+
+                result = cursor.fetchone()
+                return result['city_name'] if result else None
+
+        except Exception as e:
+            logger.error(f"Error getting city by hotel: {e}")
+            return None
