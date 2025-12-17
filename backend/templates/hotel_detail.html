@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}{{ hotel.name }} - Детали отеля{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h1>{{ hotel.name }}</h1>
+        <p class="lead">{{ hotel.city_name }} • {{ hotel.star_rating }}★</p>
+
+        <div class="mb-4">
+            <p><strong>Адрес:</strong> {{ hotel.address }}</p>
+            <p><strong>Телефон:</strong> {{ hotel.phone_number }}</p>
+            <p><strong>Email:</strong> {{ hotel.email }}</p>
+            <p><strong>Заезд:</strong> {{ hotel.check_in_time }} • <strong>Выезд:</strong> {{ hotel.check_out_time }}</p>
+            <p>{{ hotel.description }}</p>
+        </div>
+
+        <h3>Удобства</h3>
+        <div class="mb-4">
+            {% if amenities %}
+                <ul>
+                {% for amenity in amenities %}
+                    <li>{{ amenity.amenity_name }} - {{ amenity.price }} руб.</li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p>Информация об удобствах отсутствует</p>
+            {% endif %}
+        </div>
+
+        <h3>Категории номеров</h3>
+        <div class="row">
+            {% for room in rooms %}
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ room.category_name }}</h5>
+                        <p class="card-text">
+                            <strong>Вместимость:</strong> {{ room.guests_capacity }} гостей<br>
+                            <strong>Цена за ночь:</strong> {{ room.price_per_night }} руб.<br>
+                            <strong>Номеров в отеле:</strong> {{ room.room_count }}<br>
+                            <strong>Описание:</strong> {{ room.description }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">Номера не найдены</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Проверить доступность</h5>
+                <form id="availabilityForm">
+                    <div class="mb-3">
+                        <label for="roomCategory" class="form-label">Категория номера</label>
+                        <select id="roomCategory" class="form-select">
+                            {% for room in rooms %}
+                            <option value="{{ room.categories_room_id }}">{{ room.category_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="startDate" class="form-label">Дата заезда</label>
+                        <input type="date" id="startDate" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="endDate" class="form-label">Дата выезда</label>
+                        <input type="date" id="endDate" class="form-control" required>
+                    </div>
+                    <button type="button" class="btn btn-primary w-100" onclick="checkAvailabilityForm()">
+                        Проверить
+                    </button>
+                </form>
+                <div id="availabilityResult" class="mt-3" style="display: none;">
+                    <div class="alert alert-info">
+                        <h6>Результат проверки</h6>
+                        <p id="availabilityMessage"></p>
+                        <p id="availabilityPrice"></p>
+                        <a id="bookButton" href="#" class="btn btn-success btn-sm">Забронировать</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('startDate').min = today;
+    document.getElementById('endDate').min = today;
+
+    async function checkAvailabilityForm() {
+        const hotelId = parseInt('{{ hotel.id }}');
+        const roomCategoryId = document.getElementById('roomCategory').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+
+        await checkAvailability(hotelId, roomCategoryId, startDate, endDate);
+    }
+
+    async function checkAvailability(hotelId, roomCategoryId, startDate = null, endDate = null) {
+        if (!hotelId) {
+            hotelId = parseInt('{{ hotel.id }}');
+        }
+
+        if (!startDate || !endDate) {
+            startDate = document.getElementById('startDate')?.value;
+            endDate = document.getElementById('endDate')?.value;
+
+            if (!startDate || !endDate) {
+                alert('Пожалуйста, выберите даты');
+                return;
+            }
+        }
+
+        const url = `/api/check-availability?hotel_id=${hotelId}&room_category_id=${roomCategoryId}&start_date=${startDate}&end_date=${endDate}`;
+        const result = await fetchData(url);
+
+        const resultDiv = document.getElementById('availabilityResult');
+        const message = document.getElementById('availabilityMessage');
+        const price = document.getElementById('availabilityPrice');
+        const bookBtn = document.getElementById('bookButton');
+
+        if (result.error) {
+            message.textContent = `Ошибка: ${result.error}`;
+            price.textContent = '';
+            bookBtn.style.display = 'none';
+        } else {
+            if (result.available) {
+                message.textContent = `Доступно! ${result.available_rooms_count} номеров`;
+                price.textContent = `Стоимость: ${result.total_price} руб. за ${result.nights} ночей`;
+                bookBtn.href = `/hotels/${hotelId}/book?room_category_id=${roomCategoryId}&start_date=${startDate}&end_date=${endDate}`;
+                bookBtn.style.display = 'inline-block';
+            } else {
+                message.textContent = 'Нет доступных номеров на выбранные даты';
+                price.textContent = '';
+                bookBtn.style.display = 'none';
+            }
+        }
+
+        resultDiv.style.display = 'block';
+    }
+</script>
+{% endblock %}

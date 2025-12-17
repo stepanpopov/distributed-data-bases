@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Админка - {{ hotel.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Редактирование отеля</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/admin/hotels/{{ hotel.id }}/update">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Название отеля</label>
+                                <input type="text" class="form-control" id="name" name="name"
+                                       value="{{ hotel.name }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="city_name" class="form-label">Город</label>
+                                <input type="text" class="form-control" id="city_name"
+                                       value="{{ hotel.city_name }}" disabled>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Адрес</label>
+                        <input type="text" class="form-control" id="address" name="address"
+                               value="{{ hotel.address }}" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="phone_number" class="form-label">Телефон</label>
+                                <input type="text" class="form-control" id="phone_number" name="phone_number"
+                                       value="{{ hotel.phone_number }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email"
+                                       value="{{ hotel.email }}" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="check_in_time" class="form-label">Время заезда</label>
+                                <input type="time" class="form-control" id="check_in_time" name="check_in_time"
+                                       value="{{ hotel.check_in_time }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="check_out_time" class="form-label">Время выезда</label>
+                                <input type="time" class="form-control" id="check_out_time" name="check_out_time"
+                                       value="{{ hotel.check_out_time }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Описание</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ hotel.description }}</textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                        <a href="/hotels/{{ hotel.id }}" class="btn btn-secondary">Просмотр отеля</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

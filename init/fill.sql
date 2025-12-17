@@ -3,45 +3,45 @@
 -- Содержит только справочные данные (без гостей)
 -- ===========================================
 
--- Типы удобств (центральный узел - SERIAL)
+-- Типы удобств
 INSERT INTO types_amenities (name) VALUES
 ('Бассейн'),
 ('Парковка'),
 ('Спа'),
 ('Тренажерный зал');
 
--- Города (центральный узел - SERIAL)
+-- Города
 INSERT INTO cities (city_name, country_name_code) VALUES
 ('Москва', 'RUS'),
 ('Санкт-Петербург', 'RUS'),
 ('Казань', 'RUS');
 
--- Категории отелей (центральный узел - SERIAL)
+-- Категории отелей
 INSERT INTO categories_hotel (star_rating, rating_coeff) VALUES
 (3, 1.00),
 (4, 1.25),
 (5, 1.50);
 
--- Категории номеров (центральный узел - SERIAL)
+-- Категории номеров
 INSERT INTO categories_room (category_name, guests_capacity, price_per_night, description) VALUES
 ('Стандарт', 2, 3500.00, 'Базовый двухместный номер'),
 ('Улучшенный', 3, 5000.00, 'Номер с улучшенным дизайном'),
 ('Люкс', 4, 9000.00, 'Высшая категория комфорта');
 
--- Карты лояльности (центральный узел - SERIAL)
+-- Карты лояльности
 INSERT INTO loyalty_cards (program_name, req_bonus_amount, discount) VALUES
 ('Silver', 0, 5.0),
 ('Gold', 1000, 10.0),
 ('Platinum', 3000, 15.0);
 
--- Должности (центральный узел - SERIAL)
+-- Должности
 INSERT INTO positions (position_name) VALUES
 ('Администратор'),
 ('Менеджер'),
 ('Горничная'),
 ('Директор');
 
--- Отели (центральный узел - SERIAL)
+-- Отели
 -- Содержит данные обо всех отелях сети
 INSERT INTO hotels (name, city_id, address, phone_number, email, star_rating_id, check_in_time, check_out_time, location_coeff_room, description)
 VALUES

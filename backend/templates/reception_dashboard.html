@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Панель ресепшена{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>🏨 Панель ресепшена</h1>
+            <p class="text-muted">Выберите город для просмотра бронирований</p>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for city in cities %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-light shadow-sm">
+                <div class="card-header bg-light border-bottom">
+                    <h5 class="card-title mb-0 text-secondary">
+                        🏙️ {{ city.city_name }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center">
+                        <h2 class="text-primary">{{ city.reservations_count }}</h2>
+                        <p class="text-muted">активных бронирований</p>
+                    </div>
+                    
+                    {% if city.reservations_count > 0 %}
+                        <div class="alert alert-light border text-center mb-2">
+                            <small class="text-secondary">
+                                {% if city.reservations_count <= 5 %}
+                                    📍 Небольшая загрузка
+                                {% elif city.reservations_count <= 15 %}
+                                    ⚡ Средняя загрузка
+                                {% else %}
+                                    🔥 Высокая загрузка
+                                {% endif %}
+                            </small>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-light">
+                    <a href="{{ url_for('reception_city', city_name=city.city_name) }}" 
+                       class="btn btn-outline-primary btn-block">
+                        🏨 Работать с бронированиями
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if not cities %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-light border text-center">
+                <h4 class="text-secondary">Нет доступных городов</h4>
+                <p class="text-muted">В системе пока нет городов с отелями.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card border-light shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="text-secondary">📊 Общая статистика ресепшена</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-secondary">{{ cities|length }}</h3>
+                                <p class="text-muted mb-0">Городов обслуживается</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-center p-3 bg-light rounded">
+                                <h3 class="text-success">{{ cities|sum(attribute='reservations_count') }}</h3>
+                                <p class="text-muted mb-0">Активных бронирований</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
