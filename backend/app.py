@@ -385,6 +385,91 @@ def register_guests_html():
         flash(f'Ошибка: {str(e)}', 'error')
         return redirect(url_for('reception_desk', hotel_id=1))
 
+@app.route('/reception')
+def reception_dashboard():
+    """Панель ресепшена - выбор города"""
+    try:
+        # Получаем список всех городов с количеством бронирований
+        with db_manager.get_cursor('central') as cursor:
+            cursor.execute("""
+                SELECT DISTINCT c.city_name, COUNT(r.id) as reservations_count
+                FROM cities c
+                LEFT JOIN hotels h ON c.id = h.city_id
+                LEFT JOIN reservations r ON r.hotel_id = h.id AND r.status IN ('pending', 'confirmed')
+                GROUP BY c.id, c.city_name
+                ORDER BY c.city_name
+            """)
+            
+            cities = cursor.fetchall()
+            cities_list = []
+            for city in cities:
+                city_dict = {
+                    'city_name': city['city_name'],
+                    'reservations_count': city['reservations_count']
+                }
+                cities_list.append(city_dict)
+            
+        return render_template('reception_dashboard.html', cities=cities_list)
+    except Exception as e:
+        logger.error(f"Error loading reception dashboard: {e}")
+        return render_template('error.html', error=str(e))
+
+@app.route('/reception/<city_name>')
+def reception_city(city_name):
+    """Ресепшен города - список бронирований"""
+    try:
+        # Определяем филиальную БД для получения бронирований
+        if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+            db_mapping = {
+                'Москва': 'filial1',
+                'Санкт-Петербург': 'filial2',
+                'Казань': 'filial3'
+            }
+            db_name = db_mapping[city_name]
+        else:
+            db_name = 'central'
+
+        # Получаем бронирования из соответствующей филиальной БД
+        with db_manager.get_cursor(db_name) as cursor:
+            cursor.execute("""
+                SELECT r.id, r.hotel_id, r.create_date, r.start_date, r.end_date,
+                       r.status, r.total_price, r.payments_status,
+                       g.first_name, g.last_name, g.phone_number, g.email,
+                       h.name as hotel_name,
+                       dr.requested_room_category, dr.total_guest_number, dr.room_id,
+                       cr.category_name,
+                       COUNT(rrg.guest_id) as registered_guests_count
+                FROM reservations r
+                JOIN guests g ON r.payer_id = g.id
+                JOIN hotels h ON r.hotel_id = h.id
+                LEFT JOIN details_reservations dr ON dr.reservation_id = r.id
+                LEFT JOIN categories_room cr ON dr.requested_room_category = cr.id
+                LEFT JOIN room_reservation_guests rrg ON rrg.room_reservation_id = dr.id
+                WHERE r.status IN ('pending', 'confirmed')
+                GROUP BY r.id, r.hotel_id, r.create_date, r.start_date, r.end_date,
+                         r.status, r.total_price, r.payments_status,
+                         g.first_name, g.last_name, g.phone_number, g.email,
+                         h.name, dr.requested_room_category, dr.total_guest_number, 
+                         dr.room_id, cr.category_name
+                ORDER BY r.create_date DESC
+            """)
+
+            reservations = cursor.fetchall()
+            
+            # Конвертируем в нужный формат
+            reservations_list = []
+            for res in reservations:
+                res_dict = dict(res)
+                res_dict = booking_service._convert_to_serializable(res_dict)
+                reservations_list.append(res_dict)
+
+        return render_template('reception_city.html', 
+                             city_name=city_name, 
+                             reservations=reservations_list)
+    except Exception as e:
+        logger.error(f"Error loading reception city {city_name}: {e}")
+        return render_template('error.html', error=str(e))
+
 # ========== API ПУНКТЫ (для AJAX) ==========
 
 @app.route('/api/health', methods=['GET'])

@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}Ресепшен - {{ city_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('reception_dashboard') }}">Ресепшен</a></li>
+                    <li class="breadcrumb-item active">{{ city_name }}</li>
+                </ol>
+            </nav>
+            
+            <h1>🏨 Ресепшен - {{ city_name }}</h1>
+            <p class="text-muted">Управление бронированиями города</p>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3>Активные бронирования ({{ reservations|length }})</h3>
+                <div>
+                    <a href="{{ url_for('reception_dashboard') }}" class="btn btn-outline-secondary">
+                        ← Назад к городам
+                    </a>
+                    <button class="btn btn-outline-info" onclick="location.reload()">
+                        🔄 Обновить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if reservations %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="table-responsive">
+                <table class="table table-hover border">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-secondary">№ Брони</th>
+                            <th class="text-secondary">Гость</th>
+                            <th class="text-secondary">Отель</th>
+                            <th class="text-secondary">Даты</th>
+                            <th class="text-secondary">Категория</th>
+                            <th class="text-secondary">Номер</th>
+                            <th class="text-secondary">Статус</th>
+                            <th class="text-secondary">Сумма</th>
+                            <th class="text-secondary">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reservation in reservations %}
+                        <tr class="{% if reservation.status == 'pending' %}table-light border-start border-warning border-3{% elif reservation.status == 'confirmed' %}table-light border-start border-success border-3{% endif %}">
+                            <td>
+                                <strong class="text-dark">#{{ reservation.id }}</strong>
+                                <br>
+                                <small class="text-muted">{{ reservation.create_date }}</small>
+                            </td>
+                            <td>
+                                <strong class="text-dark">{{ reservation.first_name }} {{ reservation.last_name }}</strong>
+                                <br>
+                                <small class="text-muted">📞 {{ reservation.phone_number }}</small>
+                                {% if reservation.email %}
+                                <br>
+                                <small class="text-muted">✉️ {{ reservation.email }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong class="text-secondary">{{ reservation.hotel_name }}</strong>
+                            </td>
+                            <td>
+                                <small class="text-secondary">
+                                    <strong>Заезд:</strong> {{ reservation.start_date }}<br>
+                                    <strong>Выезд:</strong> {{ reservation.end_date }}
+                                </small>
+                            </td>
+                            <td>
+                                {% if reservation.category_name %}
+                                    <span class="badge bg-light text-dark border">{{ reservation.category_name }}</span>
+                                    <br>
+                                    <small class="text-muted">Гостей: {{ reservation.total_guest_number }}</small>
+                                {% else %}
+                                    <span class="text-muted">Не указано</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if reservation.room_id %}
+                                    <span class="badge bg-light text-success border border-success">Назначен</span>
+                                    <br>
+                                    <small class="text-secondary">Номер #{{ reservation.room_id }}</small>
+                                {% else %}
+                                    <span class="badge bg-light text-warning border border-warning">Не назначен</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if reservation.status == 'pending' %}
+                                    <span class="badge bg-light text-warning border border-warning">⏳ Ожидает</span>
+                                {% elif reservation.status == 'confirmed' %}
+                                    <span class="badge bg-light text-success border border-success">✅ Подтвержден</span>
+                                {% endif %}
+                                <br>
+                                {% if reservation.payments_status == 'paid' %}
+                                    <small class="text-success">💳 Оплачен</small>
+                                {% else %}
+                                    <small class="text-muted">💰 Не оплачен</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong class="text-dark">{{ reservation.total_price }} ₽</strong>
+                            </td>
+                            <td>
+                                {% if reservation.status == 'pending' or (reservation.status == 'confirmed' and not reservation.room_id) %}
+                                <button class="btn btn-outline-primary btn-sm mb-1" 
+                                        onclick="openRegisterModal({{ reservation.id }}, '{{ (reservation.first_name + ' ' + reservation.last_name)|replace("'", "\\'") }}', {{ reservation.hotel_id }}, {{ reservation.requested_room_category or 'null' }}, '{{ reservation.start_date }}', '{{ reservation.end_date }}')">
+                                    🏨 Зарегистрировать
+                                </button>
+                                {% else %}
+                                <span class="text-success">
+                                    ✅ Зарегистрирован
+                                </span>
+                                {% endif %}
+                                
+                                <br>
+                                
+                                <a href="{{ url_for('get_reservation_api', reservation_id=reservation.id) }}" 
+                                   class="btn btn-outline-secondary btn-sm mt-1" target="_blank">
+                                    📋 Детали
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info text-center">
+                <h4>Нет активных бронирований</h4>
+                <p>В городе {{ city_name }} нет бронирований, требующих обработки.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Статистика -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card border-light shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="text-secondary">📊 Статистика бронирований - {{ city_name }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded border">
+                                <h4 class="text-secondary">{{ reservations|length }}</h4>
+                                <p class="text-muted mb-0">Всего бронирований</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded border">
+                                <h4 class="text-warning">{{ reservations|selectattr('status', 'equalto', 'pending')|list|length }}</h4>
+                                <p class="text-muted mb-0">Ожидают регистрации</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded border">
+                                <h4 class="text-success">{{ reservations|selectattr('status', 'equalto', 'confirmed')|list|length }}</h4>
+                                <p class="text-muted mb-0">Подтверждены</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded border">
+                                <h4 class="text-primary">{{ reservations|selectattr('payments_status', 'equalto', 'paid')|list|length }}</h4>
+                                <p class="text-muted mb-0">Оплачены</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для регистрации гостей -->
+<div class="modal fade" id="registerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">🏨 Регистрация гостей</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status"></div>
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                        <p>Загрузка доступных номеров...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openRegisterModal(reservationId, guestName, hotelId, roomCategoryId, startDate, endDate) {
+        // Показываем модальное окно
+        var modal = new bootstrap.Modal(document.getElementById('registerModal'));
+        modal.show();
+        
+        // Загружаем доступные номера
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/available-rooms/' + hotelId + '?room_category_id=' + roomCategoryId + '&start_date=' + startDate + '&end_date=' + endDate);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    var rooms = JSON.parse(xhr.responseText);
+                    if (rooms.length > 0) {
+                        displayRoomsForm(reservationId, guestName, rooms);
+                    } else {
+                        document.getElementById('modalContent').innerHTML = 
+                            '<div class="alert alert-warning">' +
+                            '<h6>Нет доступных номеров</h6>' +
+                            '<p>К сожалению, нет свободных номеров для данного бронирования на указанные даты.</p>' +
+                            '</div>';
+                    }
+                } else {
+                    document.getElementById('modalContent').innerHTML = 
+                        '<div class="alert alert-danger">' +
+                        '<h6>Ошибка загрузки</h6>' +
+                        '<p>Произошла ошибка при загрузке доступных номеров.</p>' +
+                        '</div>';
+                }
+            }
+        };
+        xhr.send();
+    }
+
+    function displayRoomsForm(reservationId, guestName, rooms) {
+        var roomOptions = '';
+        for (var i = 0; i < rooms.length; i++) {
+            var room = rooms[i];
+            roomOptions += '<option value="' + room.id + '">';
+            roomOptions += 'Номер ' + room.room_number + ' (' + room.category_name + ') - Этаж ' + room.floor;
+            if (room.view) {
+                roomOptions += ' - ' + room.view;
+            }
+            roomOptions += '</option>';
+        }
+        
+        var content = '';
+        content += '<div class="mb-3">';
+        content += '<h6>Бронирование #' + reservationId + '</h6>';
+        content += '<p><strong>Гость:</strong> ' + guestName + '</p>';
+        content += '</div>';
+        content += '<form id="registerForm">';
+        content += '<input type="hidden" name="reservation_id" value="' + reservationId + '">';
+        content += '<div class="mb-3">';
+        content += '<label class="form-label">Выберите номер:</label>';
+        content += '<select name="room_id" class="form-select" required>';
+        content += '<option value="">-- Выберите номер --</option>';
+        content += roomOptions;
+        content += '</select>';
+        content += '</div>';
+        content += '<div class="mb-3">';
+        content += '<label class="form-label">Регистрируем основного гостя:</label>';
+        content += '<div class="form-check">';
+        content += '<input type="checkbox" name="guest_ids" value="1" checked disabled>';
+        content += '<label class="form-check-label">' + guestName + ' (основной гость)</label>';
+        content += '</div>';
+        content += '<small class="text-muted">Основной гость регистрируется автоматически</small>';
+        content += '</div>';
+        content += '<div class="d-grid">';
+        content += '<button type="submit" class="btn btn-success">✅ Зарегистрировать гостей</button>';
+        content += '</div>';
+        content += '</form>';
+        
+        document.getElementById('modalContent').innerHTML = content;
+        document.getElementById('registerForm').addEventListener('submit', handleRegistration);
+    }
+
+    function handleRegistration(event) {
+        event.preventDefault();
+        
+        var formData = new FormData(event.target);
+        
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/reception/register-guests');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    // Закрываем модальное окно
+                    var modal = bootstrap.Modal.getInstance(document.getElementById('registerModal'));
+                    modal.hide();
+                    
+                    // Перезагружаем страницу для обновления данных
+                    setTimeout(function() {
+                        location.reload();
+                    }, 500);
+                } else {
+                    alert('Ошибка при регистрации гостей');
+                }
+            }
+        };
+        xhr.send(formData);
+    }
+</script>
+{% endblock %}

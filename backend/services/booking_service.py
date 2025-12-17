@@ -231,13 +231,14 @@ class BookingService:
         try:
             # Сначала определяем, в какой БД находится бронирование
             with self.db.get_cursor('central') as cursor:
-                cursor.execute("SELECT id, hotel_id FROM reservations WHERE id = %s", (reservation_id,))
+                cursor.execute("SELECT id, hotel_id, payer_id FROM reservations WHERE id = %s", (reservation_id,))
                 reservation = cursor.fetchone()
 
                 if not reservation:
                     return {'error': 'Reservation not found', 'status': 404}
 
                 hotel_id = reservation['hotel_id']
+                payer_guest_id = reservation['payer_id']  # Реальный ID гостя
 
             # Определяем филиальную БД для работы с локальными данными
             city_name = self._get_city_by_hotel(hotel_id)
@@ -278,13 +279,24 @@ class BookingService:
 
                 detail_id = detail['id']
 
-                # Добавляем гостей в ЛОКАЛЬНУЮ таблицу room_reservation_guests
+                # Добавляем основного гостя (плательщика) в ЛОКАЛЬНУЮ таблицу room_reservation_guests
+                cursor.execute("""
+                    INSERT INTO room_reservation_guests (room_reservation_id, guest_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (room_reservation_id, guest_id) DO NOTHING
+                """, (detail_id, payer_guest_id))
+
+                # Добавляем дополнительных гостей (если переданы)
                 for guest_id in guest_ids:
-                    cursor.execute("""
-                        INSERT INTO room_reservation_guests (room_reservation_id, guest_id)
-                        VALUES (%s, %s)
-                        ON CONFLICT (room_reservation_id, guest_id) DO NOTHING
-                    """, (detail_id, guest_id))
+                    if guest_id != payer_guest_id:  # Избегаем дублирования основного гостя
+                        # Проверяем, что гость существует в таблице guests
+                        cursor.execute("SELECT id FROM guests WHERE id = %s", (guest_id,))
+                        if cursor.fetchone():
+                            cursor.execute("""
+                                INSERT INTO room_reservation_guests (room_reservation_id, guest_id)
+                                VALUES (%s, %s)
+                                ON CONFLICT (room_reservation_id, guest_id) DO NOTHING
+                            """, (detail_id, guest_id))
 
                 # Обновляем статус бронирования
                 cursor.execute("""

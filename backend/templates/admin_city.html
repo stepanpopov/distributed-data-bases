@@ -69,10 +69,6 @@
                            class="btn btn-primary">
                             Редактировать
                         </a>
-                        <a href="{{ url_for('reception_desk', hotel_id=hotel.id) }}" 
-                           class="btn btn-outline-info">
-                            Ресепшн
-                        </a>
                         <a href="{{ url_for('hotel_detail', hotel_id=hotel.id) }}" 
                            class="btn btn-outline-secondary">
                             Просмотр
@@ -103,19 +99,13 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="text-center">
                                 <h4 class="text-primary">{{ hotels|length }}</h4>
                                 <p class="text-muted">Отелей</p>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="text-center">
-                                <h4 class="text-success">{{ hotels|selectattr('star_rating')|list|length }}</h4>
-                                <p class="text-muted">С рейтингом</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="text-center">
                                 <h4 class="text-info">
                                     {% if hotels %}
