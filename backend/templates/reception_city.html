@@ -126,7 +126,6 @@
 
                                 <br>
 
-                                <!-- ИЗМЕНЕНО: Используем новый маршрут для HTML страницы -->
                                 <a href="{{ url_for('reservation_details', reservation_id=reservation.id) }}"
                                    class="btn btn-outline-secondary btn-sm mt-1">
                                     📋 Детали
@@ -150,7 +149,6 @@
     </div>
     {% endif %}
 
-    <!-- Статистика -->
     <div class="row mt-4">
         <div class="col-md-12">
             <div class="card border-light shadow-sm">
@@ -190,7 +188,6 @@
     </div>
 </div>
 
-<!-- Модальное окно для регистрации гостей -->
 <div class="modal fade" id="registerModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -216,14 +213,11 @@
 {% block scripts %}
 <script>
     function openRegisterModal(reservationId, guestName, hotelId, roomCategoryId, startDate, endDate, payerId) {
-        // Показываем модальное окно
         var modal = new bootstrap.Modal(document.getElementById('registerModal'));
         modal.show();
 
-        // Сохраняем payerId для использования в форме
         window.currentPayerId = payerId;
 
-        // Загружаем доступные номера
         var xhr = new XMLHttpRequest();
         xhr.open('GET', '/api/available-rooms/' + hotelId + '?room_category_id=' + roomCategoryId + '&start_date=' + startDate + '&end_date=' + endDate);
         xhr.onreadystatechange = function() {
@@ -304,11 +298,9 @@
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {
-                    // Закрываем модальное окно
                     var modal = bootstrap.Modal.getInstance(document.getElementById('registerModal'));
                     modal.hide();
 
-                    // Перезагружаем страницу для обновления данных
                     setTimeout(function() {
                         location.reload();
                     }, 500);

@@ -33,7 +33,6 @@
                 <form method="POST" action="/book">
                     <input type="hidden" name="hotel_id" value="{{ hotel.id }}">
 
-                    <!-- ИСПРАВЛЕНИЕ: Всегда передаем room_category_id -->
                     {% if room_category_id %}
                     <input type="hidden" name="room_category_id" value="{{ room_category_id }}">
                     {% elif room_category %}
@@ -152,14 +151,11 @@
 
 {% block scripts %}
 <script>
-    // Установка минимальной даты
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('start_date_form').min = today;
     document.getElementById('end_date_form').min = today;
 
-    // Инициализация при загрузке страницы
     document.addEventListener('DOMContentLoaded', function() {
-        // Синхронизация дат из скрытых полей
         const hiddenStartDate = document.querySelector('input[name="start_date"]');
         const hiddenEndDate = document.querySelector('input[name="end_date"]');
         const visibleStartDate = document.getElementById('start_date_form');
@@ -172,7 +168,6 @@
             visibleEndDate.value = hiddenEndDate.value;
         }
 
-        // При изменении видимых дат обновляем скрытые
         visibleStartDate.addEventListener('change', function() {
             if (hiddenStartDate) hiddenStartDate.value = this.value;
         });
@@ -181,18 +176,15 @@
             if (hiddenEndDate) hiddenEndDate.value = this.value;
         });
 
-        // Инициализируем состояние формы нового гостя при загрузке
         initializeGuestFormState();
     });
 
-    // Функция инициализации состояния формы гостя
     function initializeGuestFormState() {
         const existingGuestRadio = document.getElementById('existing_guest');
         const newGuestRadio = document.getElementById('new_guest');
         const newGuestForm = document.getElementById('new_guest_form');
         const requiredFields = newGuestForm.querySelectorAll('input[required]');
 
-        // Проверяем, какая опция выбрана по умолчанию
         if (newGuestRadio.checked) {
             newGuestForm.style.display = 'block';
             requiredFields.forEach(field => field.required = true);
@@ -202,26 +194,22 @@
         }
     }
 
-    // Переключение на форму нового гостя
     document.getElementById('new_guest').addEventListener('change', function() {
         const newGuestForm = document.getElementById('new_guest_form');
         const requiredFields = newGuestForm.querySelectorAll('input');
-        
+
         if (this.checked) {
             newGuestForm.style.display = 'block';
-            // Делаем поля обязательными только те, которые должны быть обязательными
             document.getElementById('guest_name').required = true;
             document.getElementById('guest_phone').required = true;
         }
     });
 
-    // Переключение на существующего гостя
     document.getElementById('existing_guest').addEventListener('change', function() {
         const newGuestForm = document.getElementById('new_guest_form');
-        
+
         if (this.checked) {
             newGuestForm.style.display = 'none';
-            // Убираем обязательность полей нового гостя
             const allNewGuestFields = newGuestForm.querySelectorAll('input');
             allNewGuestFields.forEach(field => field.required = false);
         }

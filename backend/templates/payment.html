@@ -80,7 +80,6 @@
 
 {% block scripts %}
 <script>
-    // Переключение деталей оплаты
     document.querySelectorAll('input[name="method"]').forEach(radio => {
         radio.addEventListener('change', function() {
             const cardDetails = document.getElementById('card_details');

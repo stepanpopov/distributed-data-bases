@@ -1,44 +1,38 @@
 #!/bin/bash
 
-# ===========================================
-# СКРИПТ НАСТРОЙКИ ПОДПИСОК РЕПЛИКАЦИИ
-# Использует Docker hostname'ы для подключения
-# ===========================================
+echo "Настройка подписок репликации для сети отелей..."
+echo "Ожидание готовности всех узлов..."
 
-echo "🚀 Настройка подписок репликации для сети отелей..."
-echo "⏳ Ожидание готовности всех узлов..."
-
-# Функция для проверки готовности узла
 check_node_ready() {
     local container=$1
     local max_attempts=60
     local attempt=1
-    
-    echo "🔍 Проверка готовности узла $container..."
+
+    echo "Проверка готовности узла $container..."
     while [ $attempt -le $max_attempts ]; do
         if docker exec $container psql -U postgres -d hotel_management -c "SELECT 1;" >/dev/null 2>&1; then
             echo "✅ Узел $container готов"
             return 0
         fi
-        echo "⏱️  Ожидание узла $container (попытка $attempt/$max_attempts)"
+        echo "Ожидание узла $container (попытка $attempt/$max_attempts)"
         sleep 2
         ((attempt++))
     done
-    
+
     echo "❌ ОШИБКА: Узел $container не готов после $max_attempts попыток"
     return 1
 }
 
-# Функция для выполнения SQL команды с повторными попытками
+
 execute_sql() {
     local container=$1
     local sql=$2
     local description=$3
     local max_attempts=3
     local attempt=1
-    
-    echo "📝 $description в $container..."
-    
+
+    echo "$description в $container..."
+
     while [ $attempt -le $max_attempts ]; do
         if docker exec -i $container psql -U postgres -d hotel_management -c "$sql" >/dev/null 2>&1; then
             echo "✅ $description выполнено успешно"
@@ -48,28 +42,26 @@ execute_sql() {
         sleep 0
         ((attempt++))
     done
-    
+
     echo "❌ ОШИБКА: $description не выполнено после $max_attempts попыток"
-    echo "📋 SQL: $sql"
+    echo "SQL: $sql"
     return 1
 }
 
-# Проверяем готовность всех узлов
-echo "🔍 Проверка готовности всех узлов..."
+echo "Проверка готовности всех узлов..."
 check_node_ready "hotel_central_node" || exit 1
 check_node_ready "hotel_filial1_node" || exit 1
 check_node_ready "hotel_filial2_node" || exit 1
 check_node_ready "hotel_filial3_node" || exit 1
 
 echo ""
-echo "🎯 Все узлы готовы! Начинаем настройку подписок репликации..."
+echo "Все узлы готовы! Начинаем настройку подписок репликации..."
 echo ""
 
-# ===========================================
-# 1. ПОДПИСКИ ФИЛИАЛОВ НА СПРАВОЧНЫЕ ДАННЫЕ (РОК)
-# ===========================================
-echo "📚 === НАСТРОЙКА ПОДПИСОК НА СПРАВОЧНЫЕ ДАННЫЕ (РОК) ==="
-echo "🎯 Филиалы подписываются на справочники с центрального узла"
+
+
+echo "=== НАСТРОЙКА ПОДПИСОК НА СПРАВОЧНЫЕ ДАННЫЕ (РОК) ==="
+echo "Филиалы подписываются на справочники с центрального узла"
 echo ""
 
 for filial in "hotel_filial1_node" "hotel_filial2_node" "hotel_filial3_node"; do
@@ -78,31 +70,28 @@ for filial in "hotel_filial1_node" "hotel_filial2_node" "hotel_filial3_node"; do
         "hotel_filial2_node") hotel_name="Санкт-Петербург"; filial_id="filial2" ;;
         "hotel_filial3_node") hotel_name="Казань"; filial_id="filial3" ;;
     esac
-    
-    echo "🏨 Настройка подписки для филиала в $hotel_name ($filial)..."
+
+    echo "Настройка подписки для филиала в $hotel_name ($filial)..."
     execute_sql "$filial" "
         CREATE SUBSCRIPTION sub_reference_data_${filial_id}
         CONNECTION 'host=postgres-central port=5432 dbname=hotel_management user=repuser password=hotel_repl_2024'
         PUBLICATION pub_reference_data
         WITH (copy_data = true, synchronous_commit = on);" "Подписка на справочные данные" || exit 1
-    
-    # Добавляем задержку между созданием подписок
-    echo "⏱️  Ожидание стабилизации подписки..."
+
+    echo "⏱Ожидание стабилизации подписки..."
     sleep 0
     echo ""
 done
 
-# ===========================================
-# 2. ПОДПИСКИ ЦЕНТРА НА ОПЕРАЦИОННЫЕ ДАННЫЕ ФИЛИАЛОВ (РКД)
-# ===========================================
-echo "🏢 === НАСТРОЙКА ПОДПИСОК ЦЕНТРА НА ДАННЫЕ ФИЛИАЛОВ (РКД) ==="
-echo "🎯 Центральный узел консолидирует операционные данные со всех филиалов"
+
+echo "=== НАСТРОЙКА ПОДПИСОК ЦЕНТРА НА ДАННЫЕ ФИЛИАЛОВ (РКД) ==="
+echo "Центральный узел консолидирует операционные данные со всех филиалов"
 echo ""
 
-# Массив филиалов с их hostname'ами
+
 declare -A filials=(
     ["filial1"]="postgres-filial1"
-    ["filial2"]="postgres-filial2" 
+    ["filial2"]="postgres-filial2"
     ["filial3"]="postgres-filial3"
 )
 
@@ -112,7 +101,7 @@ declare -A filial_names=(
     ["filial3"]="Казани"
 )
 
-# Массив таблиц для РКД
+
 publications=(
     "pub_rooms_data:rooms"
     "pub_employees_data:employees"
@@ -124,36 +113,32 @@ publications=(
 for filial_key in "${!filials[@]}"; do
     filial_host="${filials[$filial_key]}"
     filial_name="${filial_names[$filial_key]}"
-    
-    echo "🏨 Настройка подписок на данные филиала $filial_name ($filial_host)..."
-    
+
+    echo "Настройка подписок на данные филиала $filial_name ($filial_host)..."
+
     for pub_info in "${publications[@]}"; do
         IFS=':' read -r pub_name table_description <<< "$pub_info"
-        
+
         execute_sql "hotel_central_node" "
             CREATE SUBSCRIPTION sub_${filial_key}_${table_description}
             CONNECTION 'host=${filial_host} port=5432 dbname=hotel_management user=repuser password=hotel_repl_2024'
             PUBLICATION ${pub_name}
             WITH (synchronous_commit = on);" "Подписка на $table_description из $filial_name" || exit 1
-        
-        # Добавляем небольшую задержку между созданием каждой подписки
+
         sleep 0
     done
-    
-    # Более длинная задержка между филиалами
-    echo "⏱️  Ожидание стабилизации подписок..."
+
+    echo "Ожидание стабилизации подписок..."
     sleep 0
     echo ""
 done
 
-# ===========================================
-# 3. ПОДПИСКИ НА ГОСТЕЙ МЕЖДУ ВСЕМИ УЗЛАМИ (РБОК)
-# ===========================================
-echo "👥 === НАСТРОЙКА РЕПЛИКАЦИИ ГОСТЕЙ МЕЖДУ ВСЕМИ УЗЛАМИ (РБОК) ==="
-echo "🎯 Все филиалы синхронизируют данные гостей друг с другом"
+
+echo "=== НАСТРОЙКА РЕПЛИКАЦИИ ГОСТЕЙ МЕЖДУ ВСЕМИ УЗЛАМИ (РБОК) ==="
+echo "Все филиалы синхронизируют данные гостей друг с другом"
 echo ""
 
-# Подписки между филиалами (каждый филиал подписывается на гостей других филиалов)
+
 declare -A filial_containers=(
     ["hotel_filial1_node"]="postgres-filial1:Москва"
     ["hotel_filial2_node"]="postgres-filial2:Санкт-Петербург"
@@ -162,75 +147,67 @@ declare -A filial_containers=(
 
 for subscriber_container in "${!filial_containers[@]}"; do
     IFS=':' read -r subscriber_host subscriber_city <<< "${filial_containers[$subscriber_container]}"
-    
-    # Определяем ID подписчика
+
     case $subscriber_container in
         "hotel_filial1_node") subscriber_id="filial1" ;;
         "hotel_filial2_node") subscriber_id="filial2" ;;
         "hotel_filial3_node") subscriber_id="filial3" ;;
     esac
-    
-    echo "🏨 Настройка подписок на гостей для филиала $subscriber_city..."
-    
+
+    echo "Настройка подписок на гостей для филиала $subscriber_city..."
+
     for publisher_container in "${!filial_containers[@]}"; do
         if [ "$subscriber_container" != "$publisher_container" ]; then
             IFS=':' read -r publisher_host publisher_city <<< "${filial_containers[$publisher_container]}"
-            
-            # Определяем ID издателя
+
             case $publisher_container in
                 "hotel_filial1_node") publisher_id="filial1" ;;
                 "hotel_filial2_node") publisher_id="filial2" ;;
                 "hotel_filial3_node") publisher_id="filial3" ;;
             esac
-            
-            # Генерируем уникальное имя подписки: кто_подписывается_на_кого
+
             sub_name="sub_guests_${subscriber_id}_from_${publisher_id}"
-            
+
             execute_sql "$subscriber_container" "
                 CREATE SUBSCRIPTION $sub_name
                 CONNECTION 'host=${publisher_host} port=5432 dbname=hotel_management user=repuser password=hotel_repl_2024'
                 PUBLICATION pub_guests_data
                 WITH (copy_data = false, synchronous_commit = on, origin = none);" "Подписка на гостей из $publisher_city" || exit 1
-            
-            # Добавляем задержку между каждой подпиской на гостей
+
             sleep 0
         fi
     done
-    
-    # Дополнительная задержка между филиалами
-    echo "⏱️  Ожидание стабилизации подписок на гостей..."
+
+    echo "Ожидание стабилизации подписок на гостей..."
     sleep 0
     echo ""
 done
 
-# Подписки центрального узла на гостей со всех филиалов
-echo "🏢 Настройка подписок центрального узла на гостей со всех филиалов..."
+echo "Настройка подписок центрального узла на гостей со всех филиалов..."
 for filial_container in "${!filial_containers[@]}"; do
     IFS=':' read -r filial_host filial_city <<< "${filial_containers[$filial_container]}"
-    
+
     sub_name="sub_guests_from_$(echo $filial_host | sed 's/postgres-filial/filial/')"
-    
+
     execute_sql "hotel_central_node" "
         CREATE SUBSCRIPTION $sub_name
         CONNECTION 'host=${filial_host} port=5432 dbname=hotel_management user=repuser password=hotel_repl_2024'
         PUBLICATION pub_guests_data
         WITH (synchronous_commit = on, origin = none);" "Подписка центра на гостей из $filial_city" || exit 1
-    
-    # Задержка между подписками центра на гостей
+
     sleep 0
 done
 
 echo ""
-echo "📊 ==============================================="
-echo "📊 ЗАГРУЗКА ОПЕРАЦИОННЫХ ДАННЫХ НА ФИЛИАЛЫ"
-echo "📊 ==============================================="
+echo "==============================================="
+echo "ЗАГРУЗКА ОПЕРАЦИОННЫХ ДАННЫХ НА ФИЛИАЛЫ"
+echo "==============================================="
 echo ""
 
-# Загружаем операционные данные на филиалы
-echo "📈 Загрузка операционных данных на филиалы..."
+echo "Загрузка операционных данных на филиалы..."
 
-# Филиал 1 (Москва)
-echo "🏨 Загрузка данных филиала Москва..."
+
+echo "Загрузка данных филиала Москва..."
 if docker exec -i hotel_filial1_node psql -U postgres -d hotel_management < ./init/fill_operations_node1.sql >/dev/null 2>&1; then
     echo "✅ Данные филиала Москва загружены успешно"
 else
@@ -238,8 +215,7 @@ else
     exit 1
 fi
 
-# Филиал 2 (Санкт-Петербург)
-echo "🏨 Загрузка данных филиала Санкт-Петербург..."
+echo "Загрузка данных филиала Санкт-Петербург..."
 if docker exec -i hotel_filial2_node psql -U postgres -d hotel_management < ./init/fill_operations_node2.sql >/dev/null 2>&1; then
     echo "✅ Данные филиала Санкт-Петербург загружены успешно"
 else
@@ -247,8 +223,7 @@ else
     exit 1
 fi
 
-# Филиал 3 (Казань)
-echo "🏨 Загрузка данных филиала Казань..."
+echo "Загрузка данных филиала Казань..."
 if docker exec -i hotel_filial3_node psql -U postgres -d hotel_management < ./init/fill_operations_node3.sql >/dev/null 2>&1; then
     echo "✅ Данные филиала Казань загружены успешно"
 else
@@ -257,11 +232,11 @@ else
 fi
 
 echo ""
-echo "🎉 ==============================================="
-echo "🎉 РЕПЛИКАЦИЯ НАСТРОЕНА УСПЕШНО!"
-echo "🎉 ==============================================="
+echo "==============================================="
+echo "РЕПЛИКАЦИЯ НАСТРОЕНА УСПЕШНО!"
+echo "==============================================="
 echo ""
-echo "📋 Архитектура репликации:"
+echo "Архитектура репликации:"
 echo "   📚 РОК (Репликация с основной копией):"
 echo "      └── Справочники: Центр → Филиалы"
 echo "   📈 РКД (Репликация с консолидацией данных):"

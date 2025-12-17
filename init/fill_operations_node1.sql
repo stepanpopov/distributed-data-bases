@@ -1,6 +1,5 @@
 -- ===========================================
 -- ЗАПОЛНЕНИЕ ОПЕРАЦИОННЫХ ДАННЫХ ДЛЯ УЗЛА 1 (Hotel Central Moscow - Москва)
--- START WITH 1 INCREMENT BY 3 (1, 4, 7, 10...)
 -- Справочные данные получаются через репликацию с центрального узла
 -- ===========================================
 
@@ -15,7 +14,7 @@ ALTER SEQUENCE details_reservations_id_seq RESTART WITH 1 INCREMENT BY 3;
 ALTER SEQUENCE payments_id_seq RESTART WITH 1 INCREMENT BY 3;
 ALTER SEQUENCE payments_amenities_id_seq RESTART WITH 1 INCREMENT BY 3;
 
--- Гости отеля 1 (создаются на филиале, ID будут: 1, 4)
+-- Гости отеля 1 (создаются на филиале, ID: 1, 4)
 INSERT INTO guests (first_name, last_name, middle_name, phone_number, email, birth_date, document, loyalty_card_id, bonus_points)
 VALUES
 ('Иван', 'Иванов', 'Иванович', '+79001112233', 'ivanov@mail.ru',
@@ -23,7 +22,7 @@ VALUES
 ('Дмитрий', 'Кузнецов', 'Алексеевич', '+79006667788', 'dmitry@mail.ru',
  '1985-08-10', '4514 456789', 1, 800);
 
--- Номера для отеля 1 (Hotel Central Moscow) - ID будут: 1, 4, 7, 10, 13, 16
+-- Номера для отеля 1 (Hotel Central Moscow) - ID: 1, 4, 7, 10, 13, 16
 INSERT INTO rooms (hotel_id, categories_room_id, room_number, floor, view) VALUES
 (1, 1, '101', 1, 'Вид на улицу'),
 (1, 1, '102', 1, 'Вид на двор'),
@@ -32,14 +31,14 @@ INSERT INTO rooms (hotel_id, categories_room_id, room_number, floor, view) VALUE
 (1, 3, '301', 3, 'Панорамный вид'),
 (1, 3, '302', 3, 'Люкс с балконом');
 
--- Удобства для отеля 1 - ID будут: 1, 4, 7, 10
+-- Удобства для отеля 1 - ID: 1, 4, 7, 10
 INSERT INTO amenities (hotel_id, types_amenities_id, price) VALUES
 (1, 1, 0.00),   -- Бассейн бесплатно - ID=1
 (1, 2, 500.00), -- Парковка платная - ID=4
 (1, 3, 1500.00), -- Спа платное - ID=7
 (1, 4, 0.00);   -- Тренажерный зал бесплатно - ID=10
 
--- Сотрудники отеля 1 - ID будут: 1, 4, 7, 10
+-- Сотрудники отеля 1 - ID: 1, 4, 7, 10
 INSERT INTO employees (first_name, last_name, middle_name, position_id, phone_number, email, employment_date, fired_date, hotel_id, salary)
 VALUES
 ('Анна', 'Кузнецова', 'Олеговна', 4, '+79007776655', 'director@central.ru',
@@ -51,13 +50,13 @@ VALUES
 ('Марина', 'Соколова', 'Андреевна', 3, '+79007776658', 'service@central.ru',
  '2023-04-01', NULL, 1, 45000);
 
--- Бронирования для отеля 1 - ID будут: 1, 4
+-- Бронирования для отеля 1 - ID: 1, 4
 INSERT INTO reservations (hotel_id, employee_id, create_date, status, total_price, payments_status, payer_id, start_date, end_date)
 VALUES
 (1, 1, '2024-03-01 10:30:00', 'confirmed', 15000.00, 'paid', 1, '2024-03-10', '2024-03-15'),
 (1, 4, '2024-03-15 14:20:00', 'pending', 25000.00, 'unpaid', 4, '2024-04-01', '2024-04-05');
 
--- Детали бронирования - ID будут: 1, 4
+-- Детали бронирования - ID: 1, 4
 INSERT INTO details_reservations (reservation_id, room_id, guest_id, requested_room_category, total_guest_number)
 VALUES
 (1, 1, 1, 1, 2),
@@ -75,4 +74,4 @@ INSERT INTO room_reservation_guests (room_reservation_id, guest_id) VALUES
 -- Платежи за удобства - ID = 1
 INSERT INTO payments_amenities (hotel_amenities_id, payment_id, quantity, total_amenities_price) VALUES
 (4, 1, 1, 500.00),  -- Парковка (amenities ID=4, payment ID=1)
-(7, 1, 1, 1500.00); -- Спа (amenities ID=7, payment ID=1)
+(7, 1, 1, 1500.00); -- Спа (amenities ID=7, payment ID=1)э
