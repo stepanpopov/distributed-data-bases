@@ -44,13 +44,13 @@ class BookingService:
             if not all([hotel_id, guest_id, room_category_id, start_date, end_date]):
                 missing_fields = []
                 if not hotel_id: missing_fields.append('hotel_id')
-                if not guest_id: missing_fields.append('guest_id') 
+                if not guest_id: missing_fields.append('guest_id')
                 if not room_category_id: missing_fields.append('room_category_id')
                 if not start_date: missing_fields.append('start_date')
                 if not end_date: missing_fields.append('end_date')
-                
+
                 return {
-                    'error': f'Missing required fields: {", ".join(missing_fields)}', 
+                    'error': f'Missing required fields: {", ".join(missing_fields)}',
                     'status': 400
                 }
 
@@ -64,7 +64,7 @@ class BookingService:
                 cursor.execute("""
                     SELECT id FROM categories_room WHERE id = %s
                 """, (room_category_id,))
-                
+
                 if not cursor.fetchone():
                     return {'error': 'Room category not found', 'status': 404}
 
@@ -109,7 +109,7 @@ class BookingService:
                 result = cursor.fetchone()
                 if not result:
                     return {'error': 'Failed to create reservation', 'status': 500}
-                
+
                 reservation_id = result['id']
 
                 # Создаем детали бронирования
@@ -127,7 +127,7 @@ class BookingService:
                 detail_result = cursor.fetchone()
                 if not detail_result:
                     return {'error': 'Failed to create reservation details', 'status': 500}
-                
+
                 detail_id = detail_result['id']
 
                 # Создаем локальные данные room_reservation_guests только в филиальной БД
@@ -162,7 +162,7 @@ class BookingService:
         try:
             # Определяем город отеля для выбора правильной БД
             city_name = self._get_city_by_hotel(hotel_id)
-            
+
             # Бронирования и room_reservation_guests - локальные данные филиала
             if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
                 db_mapping = {
@@ -173,7 +173,7 @@ class BookingService:
                 db_name = db_mapping.get(city_name, 'central')
             else:
                 db_name = 'central'
-            
+
             with self.db.get_cursor(db_name) as cursor:
                 cursor.execute("""
                     SELECT r.*, g.first_name, g.last_name, g.phone_number,
@@ -208,11 +208,20 @@ class BookingService:
         try:
             with self.db.get_cursor('central') as cursor:
                 cursor.execute("""
-                    SELECT r.*, g.first_name, g.last_name, g.phone_number,
-                           h.name as hotel_name, h.city_id
+                    SELECT r.*, g.first_name, g.last_name, g.phone_number, g.email,
+                        g.document, g.loyalty_card_id, g.bonus_points,
+                        h.name as hotel_name, h.city_id, c.city_name,
+                        dr.requested_room_category, dr.total_guest_number, dr.room_id,
+                        cr.category_name,
+                        rm.room_number, rm.floor, rm.view,
+                        (r.end_date - r.start_date) as nights
                     FROM reservations r
                     JOIN guests g ON r.payer_id = g.id
                     JOIN hotels h ON r.hotel_id = h.id
+                    JOIN cities c ON h.city_id = c.id
+                    LEFT JOIN details_reservations dr ON dr.reservation_id = r.id
+                    LEFT JOIN categories_room cr ON dr.requested_room_category = cr.id
+                    LEFT JOIN rooms rm ON dr.room_id = rm.id
                     WHERE r.id = %s
                 """, (reservation_id,))
 

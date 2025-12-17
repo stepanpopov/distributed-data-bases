@@ -11,7 +11,7 @@
             </div>
             <div class="card-body">
                 <div class="mb-4">
-                    <h5>Отель: {{ hotel.name }}</h5>
+                    <h5>🏨 Отель: {{ hotel.name }}</h5>
                     <p class="mb-1"><strong>Город:</strong> {{ hotel.city_name }}</p>
                     <p class="mb-1"><strong>Адрес:</strong> {{ hotel.address }}</p>
 
@@ -20,6 +20,9 @@
                         <h6>Выбранный номер: {{ room_category.category_name }}</h6>
                         <p class="mb-1"><strong>Вместимость:</strong> {{ room_category.guests_capacity }} гостей</p>
                         <p class="mb-1"><strong>Цена за ночь:</strong> {{ room_category.price_per_night }} руб.</p>
+                        {% if room_category.description %}
+                        <p class="mb-1"><strong>Описание:</strong> {{ room_category.description }}</p>
+                        {% endif %}
                         {% if start_date and end_date %}
                         <p class="mb-0"><strong>Даты:</strong> {{ start_date }} - {{ end_date }}</p>
                         {% endif %}
@@ -29,8 +32,16 @@
 
                 <form method="POST" action="/book">
                     <input type="hidden" name="hotel_id" value="{{ hotel.id }}">
-                    {% if room_category %}
+
+                    <!-- ИСПРАВЛЕНИЕ: Всегда передаем room_category_id -->
+                    {% if room_category_id %}
+                    <input type="hidden" name="room_category_id" value="{{ room_category_id }}">
+                    {% elif room_category %}
                     <input type="hidden" name="room_category_id" value="{{ room_category.id }}">
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <strong>Внимание:</strong> Категория номера не выбрана. Пожалуйста, вернитесь на страницу отеля и выберите номер.
+                    </div>
                     {% endif %}
 
                     {% if start_date %}
@@ -44,32 +55,41 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="start_date" class="form-label">Дата заезда</label>
-                                <input type="date" class="form-control" id="start_date" name="start_date"
+                                <label for="start_date_form" class="form-label">Дата заезда *</label>
+                                <input type="date" class="form-control" id="start_date_form" name="start_date_form"
                                        value="{{ start_date }}" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="end_date" class="form-label">Дата выезда</label>
-                                <input type="date" class="form-control" id="end_date" name="end_date"
+                                <label for="end_date_form" class="form-label">Дата выезда *</label>
+                                <input type="date" class="form-control" id="end_date_form" name="end_date_form"
                                        value="{{ end_date }}" required>
                             </div>
                         </div>
                     </div>
 
+                    {% if room_category %}
                     <div class="mb-3">
-                        <label for="total_guests" class="form-label">Количество гостей</label>
+                        <label for="total_guests" class="form-label">Количество гостей *</label>
                         <input type="number" class="form-control" id="total_guests" name="total_guests"
                                value="1" min="1" max="{{ room_category.guests_capacity if room_category else 4 }}" required>
+                        <div class="form-text">Максимальная вместимость: {{ room_category.guests_capacity if room_category else 4 }} гостей</div>
                     </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <label for="total_guests" class="form-label">Количество гостей *</label>
+                        <input type="number" class="form-control" id="total_guests" name="total_guests"
+                               value="1" min="1" max="4" required>
+                    </div>
+                    {% endif %}
 
                     <div class="mb-3">
-                        <label class="form-label">Выберите гостя</label>
+                        <label class="form-label">Выберите гостя *</label>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="guest_id" id="existing_guest" value="1" checked>
                             <label class="form-check-label" for="existing_guest">
-                                Существующий гость (Иван Иванов)
+                                Существующий гость (Иван Иванов, +79001112233)
                             </label>
                         </div>
                         <div class="form-check">
@@ -81,29 +101,47 @@
                     </div>
 
                     <div id="new_guest_form" style="display: none;">
+                        <div class="alert alert-info">
+                            <small>Заполните информацию о новом госте</small>
+                        </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="guest_name" class="form-label">ФИО</label>
-                                    <input type="text" class="form-control" id="guest_name" name="guest_name">
+                                    <label for="guest_name" class="form-label">Имя *</label>
+                                    <input type="text" class="form-control" id="guest_name" name="guest_name" placeholder="Иван" required>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label for="guest_phone" class="form-label">Телефон</label>
-                                    <input type="tel" class="form-control" id="guest_phone" name="guest_phone">
+                                    <label for="guest_last_name" class="form-label">Фамилия</label>
+                                    <input type="text" class="form-control" id="guest_last_name" name="guest_last_name" placeholder="Иванов">
                                 </div>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="guest_email" class="form-label">Email</label>
-                            <input type="email" class="form-control" id="guest_email" name="guest_email">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="guest_phone" class="form-label">Телефон *</label>
+                                    <input type="tel" class="form-control" id="guest_phone" name="guest_phone"
+                                           placeholder="+79001112233" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="guest_email" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="guest_email" name="guest_email" placeholder="ivan@example.com">
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">Забронировать</button>
                         <a href="/hotels/{{ hotel.id }}" class="btn btn-secondary">Назад к отелю</a>
+                    </div>
+
+                    <div class="mt-3">
+                        <small class="text-muted">* - обязательные поля</small>
                     </div>
                 </form>
             </div>
@@ -116,16 +154,54 @@
 <script>
     // Установка минимальной даты
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('start_date').min = today;
-    document.getElementById('end_date').min = today;
+    document.getElementById('start_date_form').min = today;
+    document.getElementById('end_date_form').min = today;
+
+    // Синхронизация дат из скрытых полей
+    document.addEventListener('DOMContentLoaded', function() {
+        const hiddenStartDate = document.querySelector('input[name="start_date"]');
+        const hiddenEndDate = document.querySelector('input[name="end_date"]');
+        const visibleStartDate = document.getElementById('start_date_form');
+        const visibleEndDate = document.getElementById('end_date_form');
+
+        if (hiddenStartDate && hiddenStartDate.value) {
+            visibleStartDate.value = hiddenStartDate.value;
+        }
+        if (hiddenEndDate && hiddenEndDate.value) {
+            visibleEndDate.value = hiddenEndDate.value;
+        }
+
+        // При изменении видимых дат обновляем скрытые
+        visibleStartDate.addEventListener('change', function() {
+            hiddenStartDate.value = this.value;
+        });
+
+        visibleEndDate.addEventListener('change', function() {
+            hiddenEndDate.value = this.value;
+        });
+    });
 
     // Переключение формы нового гостя
     document.getElementById('new_guest').addEventListener('change', function() {
-        document.getElementById('new_guest_form').style.display = this.checked ? 'block' : 'none';
+        const newGuestForm = document.getElementById('new_guest_form');
+        newGuestForm.style.display = this.checked ? 'block' : 'none';
+
+        // Делаем поля обязательными/необязательными
+        const requiredFields = newGuestForm.querySelectorAll('[required]');
+        if (this.checked) {
+            requiredFields.forEach(field => field.required = true);
+        }
     });
 
     document.getElementById('existing_guest').addEventListener('change', function() {
-        document.getElementById('new_guest_form').style.display = 'none';
+        const newGuestForm = document.getElementById('new_guest_form');
+        newGuestForm.style.display = 'none';
+
+        // Делаем поля необязательными
+        const requiredFields = newGuestForm.querySelectorAll('[required]');
+        if (this.checked) {
+            requiredFields.forEach(field => field.required = false);
+        }
     });
 </script>
 {% endblock %}

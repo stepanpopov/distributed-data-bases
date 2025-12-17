@@ -12,7 +12,7 @@
                     <li class="breadcrumb-item active">{{ city_name }}</li>
                 </ol>
             </nav>
-            
+
             <h1>🏨 Ресепшен - {{ city_name }}</h1>
             <p class="text-muted">Управление бронированиями города</p>
         </div>
@@ -114,7 +114,7 @@
                             </td>
                             <td>
                                 {% if reservation.status == 'pending' or (reservation.status == 'confirmed' and not reservation.room_id) %}
-                                <button class="btn btn-outline-primary btn-sm mb-1" 
+                                <button class="btn btn-outline-primary btn-sm mb-1"
                                         onclick="openRegisterModal({{ reservation.id }}, '{{ (reservation.first_name + ' ' + reservation.last_name)|replace("'", "\\'") }}', {{ reservation.hotel_id }}, {{ reservation.requested_room_category or 'null' }}, '{{ reservation.start_date }}', '{{ reservation.end_date }}')">
                                     🏨 Зарегистрировать
                                 </button>
@@ -123,11 +123,12 @@
                                     ✅ Зарегистрирован
                                 </span>
                                 {% endif %}
-                                
+
                                 <br>
-                                
-                                <a href="{{ url_for('get_reservation_api', reservation_id=reservation.id) }}" 
-                                   class="btn btn-outline-secondary btn-sm mt-1" target="_blank">
+
+                                <!-- ИЗМЕНЕНО: Используем новый маршрут для HTML страницы -->
+                                <a href="{{ url_for('reservation_details', reservation_id=reservation.id) }}"
+                                   class="btn btn-outline-secondary btn-sm mt-1">
                                     📋 Детали
                                 </a>
                             </td>
@@ -218,7 +219,7 @@
         // Показываем модальное окно
         var modal = new bootstrap.Modal(document.getElementById('registerModal'));
         modal.show();
-        
+
         // Загружаем доступные номера
         var xhr = new XMLHttpRequest();
         xhr.open('GET', '/api/available-rooms/' + hotelId + '?room_category_id=' + roomCategoryId + '&start_date=' + startDate + '&end_date=' + endDate);
@@ -229,14 +230,14 @@
                     if (rooms.length > 0) {
                         displayRoomsForm(reservationId, guestName, rooms);
                     } else {
-                        document.getElementById('modalContent').innerHTML = 
+                        document.getElementById('modalContent').innerHTML =
                             '<div class="alert alert-warning">' +
                             '<h6>Нет доступных номеров</h6>' +
                             '<p>К сожалению, нет свободных номеров для данного бронирования на указанные даты.</p>' +
                             '</div>';
                     }
                 } else {
-                    document.getElementById('modalContent').innerHTML = 
+                    document.getElementById('modalContent').innerHTML =
                         '<div class="alert alert-danger">' +
                         '<h6>Ошибка загрузки</h6>' +
                         '<p>Произошла ошибка при загрузке доступных номеров.</p>' +
@@ -258,7 +259,7 @@
             }
             roomOptions += '</option>';
         }
-        
+
         var content = '';
         content += '<div class="mb-3">';
         content += '<h6>Бронирование #' + reservationId + '</h6>';
@@ -285,16 +286,16 @@
         content += '<button type="submit" class="btn btn-success">✅ Зарегистрировать гостей</button>';
         content += '</div>';
         content += '</form>';
-        
+
         document.getElementById('modalContent').innerHTML = content;
         document.getElementById('registerForm').addEventListener('submit', handleRegistration);
     }
 
     function handleRegistration(event) {
         event.preventDefault();
-        
+
         var formData = new FormData(event.target);
-        
+
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/reception/register-guests');
         xhr.onreadystatechange = function() {
@@ -303,7 +304,7 @@
                     // Закрываем модальное окно
                     var modal = bootstrap.Modal.getInstance(document.getElementById('registerModal'));
                     modal.hide();
-                    
+
                     // Перезагружаем страницу для обновления данных
                     setTimeout(function() {
                         location.reload();

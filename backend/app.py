@@ -56,21 +56,21 @@ def hotel_detail(hotel_id):
                 FROM categories_room cr
                 JOIN hotels h ON h.id = %s
                 LEFT JOIN rooms r ON r.categories_room_id = cr.id AND r.hotel_id = %s
-                GROUP BY cr.id, cr.category_name, cr.guests_capacity, 
+                GROUP BY cr.id, cr.category_name, cr.guests_capacity,
                          cr.price_per_night, cr.description, h.location_coeff_room
                 HAVING COUNT(r.id) > 0
                 ORDER BY cr.price_per_night
             """, (hotel_id, hotel_id))
 
             rooms_data = cursor.fetchall()
-            
+
             # Конвертируем в нужный формат с ценой, включающей коэффициент
             rooms = []
             for room in rooms_data:
                 room_dict = dict(room)
                 location_coeff = float(room['location_coeff_room'] or 1.0)
                 price_per_night = float(room['price_per_night'])
-                
+
                 room_dict['price_per_night'] = round(price_per_night * location_coeff, 2)
                 room_dict['room_count'] = room['total_rooms_count']
                 rooms.append(room_dict)
@@ -100,17 +100,21 @@ def booking_form(hotel_id):
 
     room_category = None
     if room_category_id:
-        # Получаем информацию о категории номера
+        # Получаем информацию о категории номера из центральной БД
         try:
             with db_manager.get_cursor('central') as cursor:
                 cursor.execute("SELECT * FROM categories_room WHERE id = %s", (room_category_id,))
                 room_category = cursor.fetchone()
+                if room_category:
+                    room_category = dict(room_category)
+                    room_category = hotel_service._convert_to_serializable(room_category)
         except Exception as e:
             logger.error(f"Error getting room category: {e}")
 
     return render_template('booking.html',
                          hotel=hotel,
                          room_category=room_category,
+                         room_category_id=room_category_id,  # Передаем ID отдельно
                          start_date=start_date,
                          end_date=end_date)
 
@@ -129,21 +133,56 @@ def create_booking_html():
         guest_email = request.form.get('guest_email')
         guest_phone = request.form.get('guest_phone')
 
+        # ВАЖНОЕ ИСПРАВЛЕНИЕ: Проверяем наличие room_category_id
+        if not room_category_id:
+            flash('Ошибка: не выбрана категория номера', 'error')
+            return redirect(url_for('booking_form', hotel_id=hotel_id))
+
+        # Определяем город отеля для выбора БД
+        city_name = booking_service._get_city_by_hotel(int(hotel_id))
+        if not city_name:
+            flash('Отель не найден', 'error')
+            return redirect(url_for('booking_form', hotel_id=hotel_id))
+
+        # Определяем филиальную БД для создания операционных данных
+        if city_name in ['Москва', 'Санкт-Петербург', 'Казань']:
+            db_mapping = {
+                'Москва': 'filial1',
+                'Санкт-Петербург': 'filial2',
+                'Казань': 'filial3'
+            }
+            primary_db = db_mapping[city_name]
+        else:
+            primary_db = 'central'
+
         # Создаем гостя, если нужно
         if guest_id == 'new':
-            # Создаем нового гостя
-            with db_manager.get_cursor('central') as cursor:
+            if not all([guest_name, guest_phone]):
+                flash('Для нового гостя необходимо указать имя и телефон', 'error')
+                return redirect(url_for('booking_form', hotel_id=hotel_id))
+
+            # Создаем нового гостя в филиальной БД (чтобы избежать проблем с foreign key)
+            with db_manager.get_cursor(primary_db) as cursor:
                 cursor.execute("""
                     INSERT INTO guests (first_name, last_name, phone_number, email, birth_date)
                     VALUES (%s, %s, %s, %s, %s) RETURNING id
                 """, (
                     guest_name.split()[0] if guest_name else 'Гость',
-                    guest_name.split()[-1] if guest_name else '',
+                    guest_name.split()[-1] if len(guest_name.split()) > 1 else '',
                     guest_phone,
                     guest_email,
-                    '2000-01-01'  # По умолчанию
+                    '2000-01-01'  # Дата по умолчанию
                 ))
-                guest_id = cursor.fetchone()['id']
+                guest_result = cursor.fetchone()
+                guest_id = guest_result['id']
+                logger.info(f"Создан новый гость с ID: {guest_id} в БД {primary_db}")
+        else:
+            # Используем существующего гостя
+            try:
+                guest_id = int(guest_id)
+            except ValueError:
+                flash('Неверный ID гостя', 'error')
+                return redirect(url_for('booking_form', hotel_id=hotel_id))
 
         # Создаем бронирование
         booking_data = {
@@ -232,16 +271,16 @@ def process_payment_html():
 
         # Обрабатываем оплату
         result = payment_service.process_payment(payment_data)
-        
+
         # Детальное логирование для отладки
         logger.info(f"Payment result for reservation {reservation_id}: {result}")
-        
+
         # Проверяем результат ПЕРЕД показом сообщений
         if 'error' in result:
             logger.warning(f"Payment error for reservation {reservation_id}: {result['error']}")
             flash(f'Ошибка при оплате: {result["error"]}', 'error')
             return redirect(url_for('payment_form', reservation_id=reservation_id))
-        
+
         # Проверяем, что операция действительно успешна
         if not result.get('success'):
             logger.warning(f"Payment failed for reservation {reservation_id}: no success flag")
@@ -275,7 +314,7 @@ def admin_dashboard():
                 GROUP BY c.id, c.city_name
                 ORDER BY c.city_name
             """)
-            
+
             cities = cursor.fetchall()
             cities_list = []
             for city in cities:
@@ -284,7 +323,7 @@ def admin_dashboard():
                     'hotels_count': city['hotels_count']
                 }
                 cities_list.append(city_dict)
-            
+
         return render_template('admin_dashboard.html', cities=cities_list)
     except Exception as e:
         logger.error(f"Error loading admin dashboard: {e}")
@@ -298,7 +337,7 @@ def admin_city(city_name):
         if not hotels:
             flash(f'В городе {city_name} нет отелей', 'warning')
             return redirect(url_for('admin_dashboard'))
-            
+
         return render_template('admin_city.html', city_name=city_name, hotels=hotels)
     except Exception as e:
         logger.error(f"Error loading admin city {city_name}: {e}")
@@ -399,7 +438,7 @@ def reception_dashboard():
                 GROUP BY c.id, c.city_name
                 ORDER BY c.city_name
             """)
-            
+
             cities = cursor.fetchall()
             cities_list = []
             for city in cities:
@@ -408,7 +447,7 @@ def reception_dashboard():
                     'reservations_count': city['reservations_count']
                 }
                 cities_list.append(city_dict)
-            
+
         return render_template('reception_dashboard.html', cities=cities_list)
     except Exception as e:
         logger.error(f"Error loading reception dashboard: {e}")
@@ -449,13 +488,13 @@ def reception_city(city_name):
                 GROUP BY r.id, r.hotel_id, r.create_date, r.start_date, r.end_date,
                          r.status, r.total_price, r.payments_status,
                          g.first_name, g.last_name, g.phone_number, g.email,
-                         h.name, dr.requested_room_category, dr.total_guest_number, 
+                         h.name, dr.requested_room_category, dr.total_guest_number,
                          dr.room_id, cr.category_name
                 ORDER BY r.create_date DESC
             """)
 
             reservations = cursor.fetchall()
-            
+
             # Конвертируем в нужный формат
             reservations_list = []
             for res in reservations:
@@ -463,8 +502,8 @@ def reception_city(city_name):
                 res_dict = booking_service._convert_to_serializable(res_dict)
                 reservations_list.append(res_dict)
 
-        return render_template('reception_city.html', 
-                             city_name=city_name, 
+        return render_template('reception_city.html',
+                             city_name=city_name,
                              reservations=reservations_list)
     except Exception as e:
         logger.error(f"Error loading reception city {city_name}: {e}")
@@ -534,30 +573,30 @@ def get_hotel_rooms(hotel_id):
                     FROM categories_room cr
                     JOIN hotels h ON h.id = %s
                     LEFT JOIN rooms r ON r.categories_room_id = cr.id AND r.hotel_id = %s
-                    GROUP BY cr.id, cr.category_name, cr.guests_capacity, 
+                    GROUP BY cr.id, cr.category_name, cr.guests_capacity,
                              cr.price_per_night, cr.description, h.location_coeff_room
                     HAVING COUNT(r.id) > 0
                     ORDER BY cr.price_per_night
                 """, (hotel_id, hotel_id))
 
                 categories = cursor.fetchall()
-                
+
                 # Конвертируем в нужный формат
                 result = []
                 for category in categories:
                     category_dict = dict(category)
-                    
+
                     # Добавляем цену с коэффициентом
                     location_coeff = float(category['location_coeff_room'] or 1.0)
                     price_per_night = float(category['price_per_night'])
-                    
+
                     category_dict['price_per_night_with_coeff'] = round(
                         price_per_night * location_coeff, 2
                     )
                     category_dict['available_rooms_count'] = category['total_rooms_count']
-                    
+
                     result.append(category_dict)
-                
+
                 categories = result
 
         return jsonify(categories)
@@ -593,7 +632,7 @@ def _get_db_by_hotel_city(hotel_id):
                 JOIN cities c ON h.city_id = c.id
                 WHERE h.id = %s
             """, (hotel_id,))
-            
+
             result = cursor.fetchone()
             if result:
                 city_name = result['city_name']
@@ -636,6 +675,54 @@ def get_reservation_api(reservation_id):
     except Exception as e:
         logger.error(f"Error getting reservation: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/reservation/<int:reservation_id>')
+def reservation_details(reservation_id):
+    """Страница деталей бронирования"""
+    try:
+        # Получаем информацию о бронировании из центральной БД
+        with db_manager.get_cursor('central') as cursor:
+            cursor.execute("""
+                SELECT
+                    r.*,
+                    g.first_name, g.last_name, g.phone_number, g.email,
+                    g.document, g.loyalty_card_id, g.bonus_points,
+                    h.name as hotel_name,
+                    dr.requested_room_category, dr.total_guest_number, dr.room_id,
+                    cr.category_name,
+                    rm.room_number, rm.floor, rm.view,
+                    c.city_name,
+                    (r.end_date - r.start_date) as nights
+                FROM reservations r
+                JOIN guests g ON r.payer_id = g.id
+                JOIN hotels h ON r.hotel_id = h.id
+                JOIN cities c ON h.city_id = c.id
+                LEFT JOIN details_reservations dr ON dr.reservation_id = r.id
+                LEFT JOIN categories_room cr ON dr.requested_room_category = cr.id
+                LEFT JOIN rooms rm ON dr.room_id = rm.id
+                WHERE r.id = %s
+            """, (reservation_id,))
+
+            reservation = cursor.fetchone()
+
+            if not reservation:
+                return render_template('404.html'), 404
+
+            # Конвертируем в словарь и сериализуем
+            reservation_dict = dict(reservation)
+            reservation_dict = booking_service._convert_to_serializable(reservation_dict)
+
+            # Получаем город для навигации
+            city_name = reservation_dict.get('city_name')
+
+        return render_template('reservation_details.html',
+                             reservation=reservation_dict,
+                             city_name=city_name)
+
+    except Exception as e:
+        logger.error(f"Error getting reservation details: {e}")
+        return render_template('error.html', error=str(e))
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

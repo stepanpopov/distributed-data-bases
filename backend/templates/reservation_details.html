@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Детали бронирования #{{ reservation.id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('reception_dashboard') }}">Ресепшен</a></li>
+                    {% if city_name %}
+                    <li class="breadcrumb-item"><a href="{{ url_for('reception_city', city_name=city_name) }}">{{ city_name }}</a></li>
+                    {% endif %}
+                    <li class="breadcrumb-item active">Бронирование #{{ reservation.id }}</li>
+                </ol>
+            </nav>
+
+            <h1>📋 Детали бронирования #{{ reservation.id }}</h1>
+            <p class="text-muted">Отель: {{ reservation.hotel_name }}</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📋 Информация о бронировании</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Статус:</strong>
+                        {% if reservation.status == 'pending' %}
+                            <span class="badge bg-warning">⏳ Ожидает</span>
+                        {% elif reservation.status == 'confirmed' %}
+                            <span class="badge bg-success">✅ Подтвержден</span>
+                        {% elif reservation.status == 'cancelled' %}
+                            <span class="badge bg-danger">❌ Отменено</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>Дата создания:</strong> {{ reservation.create_date }}</p>
+                    <p><strong>Даты проживания:</strong>
+                        <br>📅 Заезд: {{ reservation.start_date }}
+                        <br>📅 Выезд: {{ reservation.end_date }}
+                    </p>
+                    <p><strong>Дней:</strong> {{ reservation.nights or 'Не указано' }}</p>
+                    <p><strong>Сумма:</strong>
+                        <span class="text-success">{{ reservation.total_price }} ₽</span>
+                    </p>
+                    <p><strong>Статус оплаты:</strong>
+                        {% if reservation.payments_status == 'paid' %}
+                            <span class="badge bg-success">💳 Оплачено</span>
+                        {% else %}
+                            <span class="badge bg-warning">💰 Не оплачено</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>👤 Информация о госте</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Имя:</strong> {{ reservation.first_name }} {{ reservation.last_name }}</p>
+                    <p><strong>Телефон:</strong> 📞 {{ reservation.phone_number }}</p>
+                    {% if reservation.email %}
+                    <p><strong>Email:</strong> ✉️ {{ reservation.email }}</p>
+                    {% endif %}
+                    {% if reservation.document %}
+                    <p><strong>Документ:</strong> 📄 {{ reservation.document }}</p>
+                    {% endif %}
+                    {% if reservation.loyalty_card_id %}
+                    <p><strong>Карта лояльности:</strong> 🏅 ID {{ reservation.loyalty_card_id }}</p>
+                    {% endif %}
+                    {% if reservation.bonus_points %}
+                    <p><strong>Бонусные баллы:</strong> ⭐ {{ reservation.bonus_points }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if reservation.room_id or reservation.category_name %}
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>🏨 Информация о номере</h5>
+                </div>
+                <div class="card-body">
+                    {% if reservation.room_id %}
+                        <p><strong>ID номера:</strong> #{{ reservation.room_id }}</p>
+                    {% endif %}
+                    {% if reservation.room_number %}
+                        <p><strong>Номер комнаты:</strong> {{ reservation.room_number }}</p>
+                    {% endif %}
+                    {% if reservation.category_name %}
+                        <p><strong>Категория:</strong> {{ reservation.category_name }}</p>
+                    {% endif %}
+                    {% if reservation.floor %}
+                        <p><strong>Этаж:</strong> {{ reservation.floor }}</p>
+                    {% endif %}
+                    {% if reservation.view %}
+                        <p><strong>Вид:</strong> {{ reservation.view }}</p>
+                    {% endif %}
+                    {% if reservation.requested_room_category %}
+                        <p><strong>Запрошенная категория:</strong> ID {{ reservation.requested_room_category }}</p>
+                    {% endif %}
+                    {% if reservation.total_guest_number %}
+                        <p><strong>Количество гостей:</strong> 👥 {{ reservation.total_guest_number }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                {% if city_name %}
+                <a href="{{ url_for('reception_city', city_name=city_name) }}" class="btn btn-primary me-2">
+                    ← Назад к списку бронирований
+                </a>
+                {% else %}
+                <a href="{{ url_for('reception_dashboard') }}" class="btn btn-primary me-2">
+                    ← Назад к ресепшену
+                </a>
+                {% endif %}
+                <a href="/api/reservations/{{ reservation.id }}" class="btn btn-outline-secondary" target="_blank">
+                    🔗 JSON API
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
