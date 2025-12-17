@@ -1,19 +1,17 @@
 # Общие настройки для всех PostgreSQL сервисов
 x-postgres-common: &postgres-common
-  image: postgres:15
+  image: postgres:16
   environment:
     POSTGRES_DB: hotel_management
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: password
-    POSTGRES_HOST_AUTH_METHOD: trust
   command: >
     postgres
     -c wal_level=logical
     -c max_wal_senders=10
-    -c max_replication_slots=10
-    -c max_logical_replication_workers=4
-    -c max_worker_processes=8
-    -c listen_addresses='*'
+    -c max_replication_slots=40
+    -c max_logical_replication_workers=24
+    -c max_worker_processes=40
   networks:
     - hotel_network
   restart: unless-stopped
@@ -69,6 +67,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      hotel_network:
+        ipv4_address: 172.20.0.10
 
   # Филиал 1 (Отель в Москве)
   postgres-filial1:
@@ -79,15 +80,16 @@ services:
     volumes:
       - filial1_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
-      - ./init/fill_node2.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
-      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
+      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      hotel_network:
+        ipv4_address: 172.20.0.11
 
   # Филиал 2 (Отель в СПб)
   postgres-filial2:
@@ -98,15 +100,16 @@ services:
     volumes:
       - filial2_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
-      - ./init/fill_node3.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
-      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
+      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      hotel_network:
+        ipv4_address: 172.20.0.12
 
   # Филиал 3 (Отель в Казани)
   postgres-filial3:
@@ -117,15 +120,16 @@ services:
     volumes:
       - filial3_data:/var/lib/postgresql/data
       - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./init/fill.sql:/docker-entrypoint-initdb.d/02-fill-references.sql
-      - ./init/fill_node4.sql:/docker-entrypoint-initdb.d/03-fill-node.sql
-      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/04-replication.sql
+      - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/02-replication.sql
       - ./init/pg_hba.conf:/etc/postgresql/pg_hba.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      hotel_network:
+        ipv4_address: 172.20.0.13
 
   # Flask API сервис
   api:
@@ -137,9 +141,14 @@ services:
       - ./backend:/app
     command: python app.py
 
+
 networks:
   hotel_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
 
 volumes:
   central_data:
