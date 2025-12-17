@@ -22,9 +22,6 @@ x-filial-common: &filial-common
   depends_on:
     postgres-central:
       condition: service_healthy
-  volumes:
-    - ./init/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    - ./init/filial_node_replication.sql:/docker-entrypoint-initdb.d/03-replication.sql
 
 # Настройки для Flask API
 x-api-common: &api-common
