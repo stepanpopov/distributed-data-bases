@@ -74,4 +74,4 @@ INSERT INTO room_reservation_guests (room_reservation_id, guest_id) VALUES
 -- Платежи за удобства - ID = 1
 INSERT INTO payments_amenities (hotel_amenities_id, payment_id, quantity, total_amenities_price) VALUES
 (4, 1, 1, 500.00),  -- Парковка (amenities ID=4, payment ID=1)
-(7, 1, 1, 1500.00); -- Спа (amenities ID=7, payment ID=1)э
+(7, 1, 1, 1500.00); -- Спа (amenities ID=7, payment ID=1)

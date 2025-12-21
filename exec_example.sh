@@ -1,0 +1,1 @@
+sudo docker exec -i hotel_central_node psql -U postgres -d hotel_management < ./queries/check_booking_category.sql
